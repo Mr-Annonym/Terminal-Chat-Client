@@ -1,0 +1,39 @@
+# Compiler
+CXX = g++
+
+# Compiler flags
+CXXFLAGS = -Wall -Wextra -std=c++20 -Iinclude -pedantic
+
+# Ensure object directories exist
+$(shell mkdir -p obj)
+
+# Source files
+SRCS = $(wildcard src/*.cpp)
+
+# Header files
+HDRS = $(wildcard include/*.hpp)
+
+# Object files
+OBJS = $(patsubst src/%.cpp,obj/%.o,$(SRCS))
+
+# Executable names
+TARGET = ipk25-chat
+
+# Default target
+all: $(TARGET)
+
+# Main executable
+$(TARGET): $(OBJS)
+	$(CXX) $(CXXFLAGS) -o $@ $^
+
+# Compile src files into obj//
+obj/%.o: src/%.cpp $(HDRS)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+# Clean build files
+clean:
+	rm -f $(OBJS) $(ARGOBJS) $(TARGET)
+	rm -rf obj/*
+
+.PHONY: all clean argTest zip valgrind rebuild
+
