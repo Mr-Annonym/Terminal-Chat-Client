@@ -35,5 +35,8 @@ clean:
 	rm -f $(OBJS) $(ARGOBJS) $(TARGET)
 	rm -rf obj/*
 
-.PHONY: all clean argTest zip valgrind rebuild
+testTcp:
+	nc -l 4567 -k -c
+
+.PHONY: all clean argTest zip valgrind rebuild testTcp
 

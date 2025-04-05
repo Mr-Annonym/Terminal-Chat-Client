@@ -4,6 +4,10 @@
 #include <stdexcept>
 #include <cstdlib>
 #include <regex>
+#include <netdb.h>
+#include <arpa/inet.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 #include "settings.hpp"
 
 // Function to determine the target type
@@ -17,6 +21,28 @@ TargetType determinTargetType(const std::string &target) {
     if (std::regex_match(target, domain_regex)) return TargetType::DOMAIN_NAME;
     return TargetType::UNKNOWN;
 } 
+
+std::string Settings::getIpFromDomain(const std::string& domain) {
+    struct addrinfo hints{}, *res, *p;
+    char ipStr[INET_ADDRSTRLEN]; // Buffer for IPv4 address
+
+    hints.ai_family = AF_INET; // Only look for IPv4 addresses
+    hints.ai_socktype = SOCK_STREAM;
+
+    if (getaddrinfo(domain.c_str(), nullptr, &hints, &res) != 0) {
+        return ""; // Return empty string if resolution fails
+    }
+
+    for (p = res; p != nullptr; p = p->ai_next) {
+        struct sockaddr_in* ipv4 = (struct sockaddr_in*)p->ai_addr;
+        inet_ntop(AF_INET, &(ipv4->sin_addr), ipStr, sizeof(ipStr));
+        freeaddrinfo(res); // Free memory
+        return std::string(ipStr); // Return first IPv4 address
+    }
+
+    freeaddrinfo(res);
+    return ""; // No IPv4 address found
+}
 
 Settings::Settings(int argc, char* argv[]) {
     // Default values for optional arguments
@@ -64,7 +90,9 @@ Settings::Settings(int argc, char* argv[]) {
             
             // domain name
             server.hostName = serverArg;
-            server.ipVer = IpVersion::IPV4; // for now
+            server.ipVer = IpVersion::IPV4;
+            server.ip = getIpFromDomain(serverArg);
+            if (server.ip.empty()) throw std::invalid_argument("Could not resolve domain: " + serverArg);
             continue;
         }
         if (arg == "-p" && i + 1 < argc) {

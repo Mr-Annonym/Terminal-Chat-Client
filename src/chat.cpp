@@ -12,7 +12,7 @@
 int sigfds[2]; 
 
 void signalHandler(int sig) {
-    // Notify poll() about the signal
+    // Notify poll() about the signalds
     write(sigfds[1], &sig, sizeof(sig)); 
 }
 
@@ -20,6 +20,7 @@ Chat::Chat(NetworkAdress& receiver) {
     cmdFactory = new Command();
     setupAdress(receiver, this->receiver);
     setNonBlocking(STDIN_FILENO);
+    buffer = (char *)malloc(sizeof(char) * BUFFER_SIZE);
 }
 
 void Chat::setupAdress(NetworkAdress& sender, sockaddr_in& addr) {
@@ -36,36 +37,148 @@ int Chat::setNonBlocking(int fd) {
     return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
 
+void Chat::printStatusMessage(Message* msg) {
+    if (msg == nullptr) return;
+    std::string actionName = (state == FSMState::AUTH) ? "Auth" : "Join";
+    bool isOk;
+
+    if (dynamic_cast<MessageReplyTCP*>(msg)) {
+        MessageReplyTCP* msgMsg = dynamic_cast<MessageReplyTCP*>(msg);
+        isOk = msgMsg->isReplyOk();
+    }
+    if (dynamic_cast<MessageReplyUDP*>(msg)) {
+        MessageReplyUDP* msgMsg = dynamic_cast<MessageReplyUDP*>(msg);
+        isOk = msgMsg->isReplyOk();
+    }
+    std::string status = isOk ? "success" : "failed";
+    std::string sutff = isOk ? "Success" : "Failed";  
+
+    std::cout << "Action " << sutff << ": " << actionName << " " << status << "." << std::endl;
+}
+
+void Chat::printMessage(Message* msg) {
+    if (msg == nullptr) return;
+    if (dynamic_cast<MessageMsgTCP*>(msg)) {
+        MessageMsgTCP* msgMsg = dynamic_cast<MessageMsgTCP*>(msg);
+        std::cout << msgMsg->getDisplayName() << ": " << msgMsg->getContent() << std::endl;
+        return;
+    }
+    if (dynamic_cast<MessageMsgUDP*>(msg)) {
+        MessageMsgUDP* msgMsg = dynamic_cast<MessageMsgUDP*>(msg);
+        std::cout << msgMsg->getDisplayName() << ": "<< msgMsg->getContent() << std::endl;
+    }
+}
+
+bool Chat::msgTypeValidForStateSent(MessageType type) {
+
+    // bye can be sent form anywhere, exit program
+    if (type == MessageType::BYE) handleDisconnect();
+
+    switch (state) {
+        case FSMState::START:
+            switch(type) {
+                case MessageType::AUTH:
+                    state = FSMState::AUTH;
+                    return true;
+                default:
+                    return false;
+            }
+        case FSMState::AUTH:
+            switch(type) {
+                case MessageType::AUTH:
+                case MessageType::ERR:
+                    return true;
+                default:
+                    return false;
+            }
+        case FSMState::OPEN:
+            switch(type) {
+                case MessageType::MSG:
+                case MessageType::ERR:
+                    return true;
+                case MessageType::JOIN:
+                    state = FSMState::JOIN;
+                    return true;
+                default:
+                    return false;
+            }
+        case FSMState::JOIN:
+        case FSMState::END:
+            return false;
+    }
+}
+
+bool Chat::msgTypeValidForStateReceived(MessageType type) {
+    // in case i get err or bye, just exit
+    if (type == MessageType::ERR || type == MessageType::BYE) handleDisconnect();
+
+    switch (state) {
+        case FSMState::START:
+            return false;
+        case FSMState::AUTH:
+            if (type == MessageType::pREPLY) { // auth ok
+                state = FSMState::OPEN;
+                return true;
+            }
+            if (type == MessageType::nREPLY) {  // auth failed
+                return true;
+            }
+            return false;
+        case FSMState::OPEN:
+            switch(type) {
+                case MessageType::MSG:
+                    return true;
+                default:
+                    return false;
+            }
+        case FSMState::JOIN:
+            switch(type) {
+                case MessageType::MSG:
+                    return true;
+                case MessageType::pREPLY:
+                case MessageType::nREPLY:
+                    state = FSMState::OPEN;
+                    return true;
+                default:
+                    return false;
+            }
+        case FSMState::END:
+            return false;
+    }
+}
+
 Command* Chat::handleUserInput(std::string userInput) {
     if (userInput.empty()) return nullptr;
 
     Command* command = cmdFactory->createCommand(userInput);
-    if (command == nullptr) {
-        std::cerr << "Invalid command | empty message\n";
-        return nullptr;
-    }
-
-    if (authenticated && !joined) {
-        if (typeid(*command) != typeid(CommandJoin)) {
-            std::cerr << "You must join a channel first\n";
-            return nullptr;
-        }
-        joined = true;
-    }
-
-    if (!authenticated) {
-        if (typeid(*command) != typeid(CommandAuth)) {
-            std::cerr << "You must authenticate first\n";
-            return nullptr;
-        }
-        authenticated = true;
-    }
     return command;
 }
 
-void Chat::handleNewMessage(Message* message) {
-    if (message == nullptr) return;
-    std::cout << message->getMessage() << std::endl;
+void Chat::handleIncommingMessage(Message* message) {
+    if (message == nullptr) handleDisconnect();
+
+    // check, if the response is allowed
+    if (!msgTypeValidForStateReceived(message->getType())) {
+        std::string errMsg;
+        if (state == FSMState::AUTH) {
+            errMsg = "Invalid message, expected REPLY but go MESSAGE";
+        } else if (state == FSMState::OPEN) {
+            errMsg = "Invalid message, expected MESSAGE but got REPLY";
+        }
+        MessageError* errorMessage = new MessageError(client.displayName, errMsg);
+        // DELETE
+        backendSendMessage(errorMessage->getMessage());
+        handleDisconnect();
+    } 
+    
+    // user Message
+    if (typeid(*message) == typeid(MessageMsgTCP) || typeid(*message) == typeid(MessageMsgUDP)) {
+        printMessage(message);
+        return;
+    }
+
+    // Repaly
+    printStatusMessage(message);
 }
 
 void Chat::eventLoop() {
@@ -101,7 +214,7 @@ void Chat::eventLoop() {
     fds[2].events = POLLIN;
 
     while (true) {
-       int ret;
+        int ret;
         do {
             ret = poll(fds, 3, -1);
         } while (ret == -1 && errno == EINTR); // Restart poll if interrupted
@@ -111,7 +224,6 @@ void Chat::eventLoop() {
             std::string userMessage;
             std::getline(std::cin, userMessage);
             if (!userMessage.empty()) {
-                std::cout << "sending message: " << userMessage << std::endl;
                 sendMessage(userMessage);
             }
         }
@@ -119,13 +231,8 @@ void Chat::eventLoop() {
         // Check for server response
         if (fds[1].revents & POLLIN) {
             std::string response = getServerResponse();
-            std::cout << "Received response: " << response << std::endl;
-            if (response.empty()) {
-                std::cerr << "Server closed the connection\n";
-                break;
-            }
             Message* message = parseResponse(response);
-            handleNewMessage(message);
+            handleIncommingMessage(message);
         }
 
         // Check for SIGINT (Ctrl+C)
@@ -141,91 +248,4 @@ void Chat::eventLoop() {
     close(sigfds[0]);
     close(sigfds[1]);
     destruct();
-}
-
-
-ChatTCP::ChatTCP(NetworkAdress& receiver) : Chat(receiver) {
-    tcpFactory = new TCPMessages(&client);
-
-    sockfd1 = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd1 < 0) {
-        std::cerr << "Error opening socket\n";
-        destruct();
-        exit(1);
-    }
-
-    if (connect(sockfd1, (struct sockaddr *)&receiver, sizeof(receiver)) < 0) {
-        std::cerr << "Connection failed\n";
-        //destruct();
-        //exit(1);
-    }
-
-    setNonBlocking(sockfd1);
-}
-
-void ChatTCP::destruct() {
-    if (sockfd1 >= 0) {
-        close(sockfd1);
-        sockfd1 = -1;
-    }
-}
-
-ChatTCP::~ChatTCP() {
-    destruct();
-}
-
-void ChatTCP::sendMessage(std::string userInput) {
-    Command* command = handleUserInput(userInput);
-    if (command == nullptr) return;
-
-    Message* message = tcpFactory->convertCommandToMessage(command);
-    if (message == nullptr) {
-        std::cerr << "Invalid command\n";
-        return;
-    }
-
-    std::string msg = message->getMessage();
-    backendSendMessage(msg);
-}
-
-void ChatTCP::backendSendMessage(std::string message) {
-    size_t total_sent = 0;
-    size_t message_length = message.size();
-    while (total_sent < message_length) {
-        ssize_t bytes_sent = send(sockfd1, message.c_str() + total_sent, message_length - total_sent, 0);
-        if (bytes_sent < 0) {
-            std::cerr << "Error sending message\n";
-            exit(1);
-        }
-        total_sent += bytes_sent;
-    }
-}
-
-std::string ChatTCP::getServerResponse() {
-    char buffer[1024] = {0};
-    int bytes_received = recv(sockfd1, buffer, sizeof(buffer) - 1, 0);
-    if (bytes_received < 0) {
-        std::cerr << "Error receiving message\n";
-        return "";
-    }
-    if (bytes_received == 0) {
-        return "";  // Handle disconnection properly in eventLoop()
-    }
-    return std::string(buffer, bytes_received);
-}
-
-Message* ChatTCP::parseResponse(std::string response) {
-    return tcpFactory->readResponse(response);
-}
-
-void ChatTCP::handleDisconnect() {
-    std::cout << "Disconnecting...\n";
-    exit(1); // remove
-    sendByeMessage();
-    destruct();
-}
-
-// TODO
-void ChatTCP::sendByeMessage() {
-
 }

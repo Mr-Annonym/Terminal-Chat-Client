@@ -3,24 +3,7 @@
 #define MESSAGE_HPP
 #include <string>
 #include "command.hpp"
-
-enum class MessageType {
-    AUTH,
-    BYE,
-    CONFIRM, // for UDP only
-    ERR,
-    JOIN,
-    MSG,
-    PING, // for UDP only
-    REPLY,
-    UNKNOWN
-};
-
-enum class ClientStatus {
-    AUTHENTICATED,
-    JOINED,
-    NONE
-};
+#include "utils.hpp"
 
 struct clientInfo {
     std::string displayName;
@@ -47,6 +30,7 @@ class Message {
         virtual void sendErrorMessage() {};
         // base method for converting a cmd to a message
         virtual Message* convertCommandToMessage() {return nullptr;};
+        virtual MessageType getType() = 0;
     protected:
         struct clientInfo* client;
 };
@@ -59,6 +43,7 @@ class TCPMessages : public Message {
         Message* readResponse(std::string resopnse);
         Message* convertCommandToMessage() override {return nullptr;};
         Message* convertCommandToMessage(Command* command);
+        MessageType getType() override {return MessageType::UNKNOWN;};
 };
 
 // UDP factory
@@ -69,6 +54,7 @@ class UDPMessages : public Message {
         Message* readResponse(std::string resopnse);
         Message* convertCommandToMessage() override {return nullptr;};
         Message* convertCommandToMessage(uint16_t messageID, Command* command);
+        MessageType getType() override {return MessageType::UNKNOWN;}
         // static method for udp ping message
         static unsigned int getNextZeroIdx(std::string message, unsigned int startIdx);
 }; 
@@ -78,8 +64,9 @@ class MessageError : public Message {
     public:
         MessageError(std::string displayName, std::string content);
         ~MessageError() {};
-
-    protected:
+        MessageType getType() override {return MessageType::ERR;};
+        
+        protected:
         std::string displayName;
         std::string content;
 };
@@ -108,7 +95,8 @@ class MessageReply : public Message {
     public:
         MessageReply(bool isOk, std::string content);
         ~MessageReply() {};
-
+        MessageType getType() override {return isOk ? MessageType::pREPLY : MessageType::nREPLY;};
+        bool isReplyOk() const { return isOk; };
     protected:
         bool isOk;
         std::string content;
@@ -139,6 +127,7 @@ class MessageAuth : public Message {
     public:
         MessageAuth(std::string username, std::string displayName, std::string secret);
         ~MessageAuth() {};
+        MessageType getType() override {return MessageType::AUTH;};
 
     protected:
         std::string username;
@@ -170,6 +159,7 @@ class MessageJoin : public Message {
     public:
         MessageJoin(std::string channelId, std::string displayName);
         ~MessageJoin() {};
+        MessageType getType() override {return MessageType::JOIN;};
 
     protected:
         std::string displayName;
@@ -200,6 +190,9 @@ class MessageMsg : public Message {
     public:
         MessageMsg(std::string displayName, std::string content);
         ~MessageMsg() {};
+        MessageType getType() override {return MessageType::MSG;};
+        std::string getDisplayName() const { return displayName; };
+        std::string getContent() const { return content; };
 
     protected:
         std::string displayName;
@@ -230,6 +223,7 @@ class MessageBye : public Message {
     public:
         MessageBye(std::string displayName);
         ~MessageBye() {};
+        MessageType getType() override {return MessageType::BYE;};
 
     protected:
         std::string displayName;
@@ -261,6 +255,7 @@ class MessageConfirm : public Message {
         ~MessageConfirm() {};
         std::string getMessage() override;
         uint16_t getID() const { return ID; };
+        MessageType getType() override {return MessageType::CONFIRM;};
 
     private:
         uint16_t ID;
@@ -273,6 +268,7 @@ class MessagePing : public Message {
         ~MessagePing() {};
         std::string getMessage() override;
         uint16_t getID() const { return ID; };
+        MessageType getType() override {return MessageType::PING;};
 
     private:
         uint16_t ID;

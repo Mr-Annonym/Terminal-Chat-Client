@@ -9,22 +9,13 @@
 #include "command.hpp"
 #include "message.hpp"
 #include "settings.hpp"
+#include "utils.hpp"
 
-#define MAX_EVENTS 2 
-#define BUFFER_SIZE 1024
-// Socket pair for signal handling
-void signalHandler(int sig);
-
-enum class UDPmessaStatus {
-    SENT,
-    CONFIRMED,
-};
 
 class Chat {
-    static Chat* instance; // static instance ptr, for handling ctr+c
     public:
         Chat(NetworkAdress& receiver);
-        ~Chat() {};
+        ~Chat() {deleteBuffer();};
         Command* handleUserInput(std::string userInput);
         virtual void sendMessage(std::string userInput) = 0;
         virtual void handleDisconnect() = 0;
@@ -35,17 +26,28 @@ class Chat {
         virtual void destruct() = 0;
         virtual void backendSendMessage(std::string message) = 0;
         virtual void sendByeMessage() = 0;
+        bool msgTypeValidForStateSent(MessageType type);
+        bool msgTypeValidForStateReceived(MessageType type);
         void setupAdress(NetworkAdress& sender, sockaddr_in& addr);
-        void handleNewMessage(Message* message);
+        void handleIncommingMessage(Message* message);
+        void printStatusMessage(Message* msg);
+        void printMessage(Message* msg);
+        void deleteBuffer() {
+            if (buffer != nullptr) {
+                free(buffer);
+                buffer = nullptr;
+            }
+        };
         Command* cmdFactory;
         int sockfd1 = -1;
-        bool authenticated = false;
-        bool joined = false;
         sockaddr_in receiver;
         struct clientInfo client;   
         int setNonBlocking(int fd);
-        void setupEpoll();
         int epoll_fd;
+        std::vector<Message*> backlog;
+        FSMState state = FSMState::START;
+        char* buffer;
+        int timeout_ms = 10000; // 5 seconds
 };
 
 class ChatTCP : public Chat {
@@ -61,6 +63,7 @@ class ChatTCP : public Chat {
         void backendSendMessage(std::string message) override;
         std::string getServerResponse() override;   
         Message* parseResponse(std::string response) override;
+        void waitForResponseWithTimeout();
 };
 
 class ChatUDP : public Chat {

@@ -4,29 +4,8 @@
 #define SETTINGS_HPPP
 
 #include <string>
+#include "utils.hpp"
 
-enum class Mode {
-    TCP,
-    UDP,
-    NONE
-};
-
-enum class IpVersion {
-    IPV4,
-    IPV6,
-    None
-};
-
-/**
- * @enum Mode
- * @brief Enumeration for different scanning modes.
- */
-enum class TargetType {
-    IP_v4,
-    IP_v6,
-    DOMAIN_NAME,
-    UNKNOWN
-};
 
 struct NetworkAdress {
     std::string hostName;
@@ -55,6 +34,7 @@ class Settings {
         int udpTimeoutConfirmation;
         int maxUdpRetransmissions;
         void printHelp() const;
+        std::string getIpFromDomain(const std::string& domain);
 };
 
 

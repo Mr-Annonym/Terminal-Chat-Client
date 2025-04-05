@@ -3,6 +3,7 @@
 #define COMMAND_HPP
 
 #include <string>
+#include "utils.hpp"
 
 class Command {
 
