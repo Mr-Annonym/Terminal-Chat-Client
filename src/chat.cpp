@@ -213,19 +213,18 @@ void Chat::eventLoop() {
     fds[2].fd = sigfds[0]; // Signal notification via socketpair
     fds[2].events = POLLIN;
 
+    int ret;
     while (true) {
-        int ret;
-        do {
-            ret = poll(fds, 3, -1);
-        } while (ret == -1 && errno == EINTR); // Restart poll if interrupted
-
+        ret = poll(fds, 3, -1);
+        
         // Check for user input
         if (fds[0].revents & POLLIN) {
             std::string userMessage;
-            std::getline(std::cin, userMessage);
-            if (!userMessage.empty()) {
-                sendMessage(userMessage);
+            if (!std::getline(std::cin, userMessage)) { // Handle EOF
+                handleDisconnect(); // Custom method to send disconnect signal
+                break;
             }
+            if (!userMessage.empty()) sendMessage(userMessage);
         }
 
         // Check for server response

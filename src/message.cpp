@@ -230,7 +230,7 @@ MessageErrorUDP::MessageErrorUDP(
 */
 std::string MessageErrorUDP::getMessage() {
     std::string message;
-    message.reserve(1 + 2 + displayName.size() + 1 + content.size() + 1); // Preallocate
+    message.reserve(1 + 1 + displayName.size() + 1 + content.size() + 1); // Preallocate
     message.push_back(static_cast<char>(0xFE));  // Protocol identifier
     message.push_back(static_cast<char>((msgID >> 8) & 0xFF)); // High byte of msgID
     message.push_back(static_cast<char>(msgID & 0xFF));        // Low byte of msgID
@@ -463,7 +463,6 @@ std::string MessageConfirm::getMessage() {
     message.push_back(static_cast<char>((ID >> 8) & 0xFF)); // High byte of msgID
     message.push_back(static_cast<char>(ID & 0xFF));        // Low byte of msgID
     return message;
-
 }
 
 /*

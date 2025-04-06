@@ -5,6 +5,8 @@
 #define MAX_EVENTS 2 
 #define BUFFER_SIZE 65536
 // Socket pair for signal handling
+
+extern int sigfds[2]; 
 void signalHandler(int sig);
 
 enum class UDPmessaStatus {

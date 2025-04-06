@@ -93,7 +93,13 @@ void ChatTCP::waitForResponseWithTimeout() {
     pfd.fd = sockfd1;
     pfd.events = POLLIN;
 
-    int ret = poll(&pfd, 1, timeout_ms);
+    std::cout << "waiting for server response...\n";
+
+    int ret;
+    do {
+        ret = poll(&pfd, 1, timeout_ms);
+    } while (ret == -1 && errno == EINTR); // <-- retry on signal interruption
+
     if (ret > 0 && (pfd.revents & POLLIN)) {
         std::string responseOut = getServerResponse();
         Message* message = parseResponse(responseOut);
@@ -101,14 +107,13 @@ void ChatTCP::waitForResponseWithTimeout() {
         return;
     } 
 
-    // error
-    if (ret < 0) {
-        std::cerr << "Internal error: poll failed\n";
+    if (ret == 0) {
+        std::cerr << "Timeout waiting for server response\n";
         handleDisconnect();
+        return;
     }
 
-    // timeout
-    std::cerr << "Timeout waiting for server response\n";
+    std::cerr << "Internal error: poll failed\n";
     handleDisconnect();
 }
 
