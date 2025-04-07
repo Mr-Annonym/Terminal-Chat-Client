@@ -19,7 +19,7 @@ void signalHandler(int sig) {
 Chat::Chat(NetworkAdress& receiver) {
     cmdFactory = new Command();
     setupAdress(receiver, this->receiver);
-    setNonBlocking(STDIN_FILENO);
+    //setNonBlocking(STDIN_FILENO);
     buffer = (char *)malloc(sizeof(char) * BUFFER_SIZE);
 }
 
@@ -106,6 +106,7 @@ bool Chat::msgTypeValidForStateSent(MessageType type) {
         case FSMState::END:
             return false;
     }
+    return false;
 }
 
 bool Chat::msgTypeValidForStateReceived(MessageType type) {
@@ -145,6 +146,7 @@ bool Chat::msgTypeValidForStateReceived(MessageType type) {
         case FSMState::END:
             return false;
     }
+    return false;
 }
 
 Command* Chat::handleUserInput(std::string userInput) {
@@ -212,17 +214,25 @@ void Chat::eventLoop() {
 
     fds[2].fd = sigfds[0]; // Signal notification via socketpair
     fds[2].events = POLLIN;
-
     int ret;
+
     while (true) {
-        ret = poll(fds, 3, -1);
-        
+        do {
+            ret = poll(fds, 3, -1);
+        } while (ret == -1 && errno == EINTR); // Restart poll if interrupted
+        ret = poll(fds, 3, -1); // Wait indefinitely for events
+
+        // poll error 
+        if (ret == -1 && errno != EINTR) {
+            std::cerr << "Poll error \n";
+            handleDisconnect(); // Custom method to send disconnect signal
+        }
+
         // Check for user input
         if (fds[0].revents & POLLIN) {
             std::string userMessage;
             if (!std::getline(std::cin, userMessage)) { // Handle EOF
                 handleDisconnect(); // Custom method to send disconnect signal
-                break;
             }
             if (!userMessage.empty()) sendMessage(userMessage);
         }
@@ -239,7 +249,6 @@ void Chat::eventLoop() {
             int sig;
             read(sigfds[0], &sig, sizeof(sig));
             handleDisconnect(); // Custom method to send disconnect signal
-            break;
         }
     }
 

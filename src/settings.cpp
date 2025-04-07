@@ -8,6 +8,7 @@
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <cstring>
 #include "settings.hpp"
 
 // Function to determine the target type
@@ -47,7 +48,7 @@ std::string Settings::getIpFromDomain(const std::string& domain) {
 Settings::Settings(int argc, char* argv[]) {
     // Default values for optional arguments
 
-    memset(&server, 0, sizeof(server));
+    //memset(&server, 0, sizeof(server));
     server.ipVer = IpVersion::None; // indicate not set
     server.port = 4567; // default port
 

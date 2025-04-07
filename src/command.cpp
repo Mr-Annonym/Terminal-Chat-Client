@@ -10,21 +10,27 @@ Command* Command::createCommand(std::string userInput) {
     if (userInput.empty()) {
         return nullptr;
     }
-
     try {
-        // check if the userInput starts with /auth or /join or /rename or /help
-        if (userInput.find("/auth") == 0) return new CommandAuth(userInput);
-        if (userInput.find("/join") == 0) return new CommandJoin(userInput);
-        if (userInput.find("/rename") == 0) return new CommandRename(userInput);
-        if (userInput.find("/help") == 0) {
-            printHelp();
+        // Check if the userInput starts with a '/'
+        if (userInput.find("/") == 0) {
+            // Match specific commands
+            if (userInput.find("/auth") == 0) return new CommandAuth(userInput);
+            if (userInput.find("/join") == 0) return new CommandJoin(userInput);
+            if (userInput.find("/rename") == 0) return new CommandRename(userInput);
+            if (userInput.find("/help") == 0) {
+                printHelp();
+                return nullptr;
+            }
+            // If none of the commands match, it's an invalid command
+            std::cerr << "Error: Invalid command. Type /help for a list of commands.\n";
             return nullptr;
         }
     }
     catch (const std::invalid_argument& e) {
-        std::cout << "invalid command, seek /help\n";
+        std::cout << e.what() << "\n";
         return nullptr;
     }
+    // If the input does not start with '/', treat it as a message
     return new CommandMessage(userInput);
 }
 
@@ -73,7 +79,7 @@ void CommandAuth::represent() {
 // Constructor for CommandJoin
 CommandJoin::CommandJoin(std::string userInput) {
     // Define a regex pattern to match the /join command followed by a single string ChannelID
-        std::regex pattern(R"(^\s*/join\s+(\S+)(\s+.*)?$)");
+    std::regex pattern(R"(^\s*/join\s+(\S+)(\s+.*)?$)");
     std::smatch matches;
 
     // Check if the input matches the pattern

@@ -4,6 +4,7 @@
 #define SETTINGS_HPPP
 
 #include <string>
+#include <cstdint>
 #include "utils.hpp"
 
 
@@ -36,7 +37,5 @@ class Settings {
         void printHelp() const;
         std::string getIpFromDomain(const std::string& domain);
 };
-
-
 
 #endif // SETTINGS_HPPP

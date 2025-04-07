@@ -26,6 +26,7 @@ class Chat {
         virtual void destruct() = 0;
         virtual void backendSendMessage(std::string message) = 0;
         virtual void sendByeMessage() = 0;
+        virtual void sendTimeoutErrMessage() = 0;
         bool msgTypeValidForStateSent(MessageType type);
         bool msgTypeValidForStateReceived(MessageType type);
         void setupAdress(NetworkAdress& sender, sockaddr_in& addr);
@@ -64,6 +65,7 @@ class ChatTCP : public Chat {
         std::string getServerResponse() override;   
         Message* parseResponse(std::string response) override;
         void waitForResponseWithTimeout();
+        void sendTimeoutErrMessage() override;
 };
 
 class ChatUDP : public Chat {
@@ -79,6 +81,7 @@ class ChatUDP : public Chat {
         std::vector<UDPmessaStatus> msgStatus;
         UDPMessages* udpFactory;
         void backendSendMessage(std::string message) override;
+        void sendTimeoutErrMessage() override;
         Message* parseResponse(std::string response) override;
         int sockfd2;
 };

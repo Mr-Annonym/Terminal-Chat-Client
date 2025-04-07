@@ -109,6 +109,7 @@ void ChatTCP::waitForResponseWithTimeout() {
 
     if (ret == 0) {
         std::cerr << "Timeout waiting for server response\n";
+        sendTimeoutErrMessage();
         handleDisconnect();
         return;
     }
@@ -147,4 +148,9 @@ void ChatTCP::sendByeMessage() {
     MessageByeTCP* byMessage = new MessageByeTCP(client.displayName);
     backendSendMessage(byMessage->getMessage());
     destruct();
+}
+
+void ChatTCP::sendTimeoutErrMessage() {
+    MessageErrorTCP* errMessage = new MessageErrorTCP(client.displayName, "Timeout waiting for server response");
+    backendSendMessage(errMessage->getMessage());
 }
