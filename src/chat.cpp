@@ -27,7 +27,7 @@ void Chat::setupAdress(NetworkAdress& sender, sockaddr_in& addr) {
     addr.sin_family = AF_INET;
     addr.sin_port = htons(sender.port);
     if (inet_pton(AF_INET, sender.ip.c_str(), &addr.sin_addr) <= 0) {
-        std::cerr << "Invalid address/ Address not supported\n";
+        std::cout << "ERROR: Invalid address/ Address not supported\n";
         exit(1);
     }
 }
@@ -41,19 +41,20 @@ void Chat::printStatusMessage(Message* msg) {
     if (msg == nullptr) return;
     std::string actionName = (state == FSMState::AUTH) ? "Auth" : "Join";
     bool isOk;
+    std::string content;
 
     if (dynamic_cast<MessageReplyTCP*>(msg)) {
         MessageReplyTCP* msgMsg = dynamic_cast<MessageReplyTCP*>(msg);
         isOk = msgMsg->isReplyOk();
+        content = msgMsg->getContent();
     }
     if (dynamic_cast<MessageReplyUDP*>(msg)) {
         MessageReplyUDP* msgMsg = dynamic_cast<MessageReplyUDP*>(msg);
         isOk = msgMsg->isReplyOk();
+        content = msgMsg->getContent();
     }
-    std::string status = isOk ? "success" : "failed";
-    std::string sutff = isOk ? "Success" : "Failed";  
-
-    std::cout << "Action " << sutff << ": " << actionName << " " << status << "." << std::endl;
+    std::string status = isOk ? "Success" : "Failed";  
+    std::cout << "Action " << status << ": " << content << std::endl;
 }
 
 void Chat::printMessage(Message* msg) {
@@ -76,13 +77,11 @@ bool Chat::msgTypeValidForStateSent(MessageType type) {
 
     switch (state) {
         case FSMState::START:
-            switch(type) {
-                case MessageType::AUTH:
-                    state = FSMState::AUTH;
-                    return true;
-                default:
-                    return false;
+            if (type == MessageType::AUTH) {
+                state = FSMState::AUTH;
+                return true;
             }
+            return false;
         case FSMState::AUTH:
             switch(type) {
                 case MessageType::AUTH:
@@ -111,7 +110,11 @@ bool Chat::msgTypeValidForStateSent(MessageType type) {
 
 bool Chat::msgTypeValidForStateReceived(MessageType type) {
     // in case i get err or bye, just exit
-    if (type == MessageType::ERR || type == MessageType::BYE) handleDisconnect();
+    if (
+        type == MessageType::ERR || 
+        type == MessageType::BYE || 
+        type == MessageType::CONFIRM
+    ) handleDisconnect();
 
     switch (state) {
         case FSMState::START:
@@ -156,42 +159,48 @@ Command* Chat::handleUserInput(std::string userInput) {
     return command;
 }
 
-void Chat::handleIncommingMessage(Message* message) {
-    if (message == nullptr) handleDisconnect();
+std::string Chat::waitForResponse(int* timeLeft) {
 
-    // check, if the response is allowed
-    if (!msgTypeValidForStateReceived(message->getType())) {
-        std::string errMsg;
-        if (state == FSMState::AUTH) {
-            errMsg = "Invalid message, expected REPLY but go MESSAGE";
-        } else if (state == FSMState::OPEN) {
-            errMsg = "Invalid message, expected MESSAGE but got REPLY";
-        }
-        MessageError* errorMessage = new MessageError(client.displayName, errMsg);
-        // DELETE
-        backendSendMessage(errorMessage->getMessage());
-        handleDisconnect();
-    } 
-    
-    // user Message
-    if (typeid(*message) == typeid(MessageMsgTCP) || typeid(*message) == typeid(MessageMsgUDP)) {
-        printMessage(message);
-        return;
-    }
+    if (!timeLeft || *timeLeft <= 0) return "";
 
-    // Repaly
-    printStatusMessage(message);
+    struct pollfd pfd;
+    pfd.fd = sockfd;
+    pfd.events = POLLIN;
+
+    auto start_time = std::chrono::steady_clock::now();
+
+    int ret;
+    do {
+        ret = poll(&pfd, 1, *timeLeft);
+    } while (ret == -1 && errno == EINTR); // Retry on signal interruption
+
+    auto end_time = std::chrono::steady_clock::now();
+    int elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+
+    // Update the time left
+    *timeLeft = std::max(0, *timeLeft - elapsed_time);
+
+    // Timeout or error
+    if (ret <= 0) return "";
+
+    // Response
+    if (pfd.revents & POLLIN) return backendGetServerResponse();
+
+    // Error
+    std::cout << "ERROR: internal error, poll failed\n";
+    handleDisconnect();
+    return ""; // To make compiler happy
 }
 
 void Chat::eventLoop() {
-    if (sockfd1 < 0) {
-        std::cerr << "Socket is not initialized\n";
-        return;
+    if (sockfd < 0) {
+        std::cout << "ERROR: socket inicialization faild\n";
+        exit(1);
     }
 
     // Create a socket pair for signal handling
     if (socketpair(AF_UNIX, SOCK_STREAM, 0, sigfds) == -1) {
-        std::cerr << "Failed to create socket pair\n";
+        std::cout << "ERROR: failed to create socket pair\n";
         exit(1);
     }
 
@@ -201,7 +210,7 @@ void Chat::eventLoop() {
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = SA_RESTART;
     if (sigaction(SIGINT, &sa, nullptr) == -1) {
-        std::cerr << "Failed to set signal handler\n";
+        std::cout << "ERROR: faild to setup sigint\n";
         exit(1);
     }
 
@@ -209,7 +218,7 @@ void Chat::eventLoop() {
     fds[0].fd = STDIN_FILENO;
     fds[0].events = POLLIN;
 
-    fds[1].fd = sockfd1;
+    fds[1].fd = sockfd;
     fds[1].events = POLLIN;
 
     fds[2].fd = sigfds[0]; // Signal notification via socketpair
@@ -219,12 +228,11 @@ void Chat::eventLoop() {
     while (true) {
         do {
             ret = poll(fds, 3, -1);
-        } while (ret == -1 && errno == EINTR); // Restart poll if interrupted
-        ret = poll(fds, 3, -1); // Wait indefinitely for events
+        } while (ret == -1 && errno == EINTR); // Retry on signal interruption
 
         // poll error 
         if (ret == -1 && errno != EINTR) {
-            std::cerr << "Poll error \n";
+            std::cout << "ERROR: poll failed\n";
             handleDisconnect(); // Custom method to send disconnect signal
         }
 
@@ -239,7 +247,7 @@ void Chat::eventLoop() {
 
         // Check for server response
         if (fds[1].revents & POLLIN) {
-            std::string response = getServerResponse();
+            std::string response = backendGetServerResponse();
             Message* message = parseResponse(response);
             handleIncommingMessage(message);
         }

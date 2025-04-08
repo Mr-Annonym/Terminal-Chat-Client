@@ -15,24 +15,26 @@
 class Chat {
     public:
         Chat(NetworkAdress& receiver);
-        ~Chat() {deleteBuffer();};
-        Command* handleUserInput(std::string userInput);
-        virtual void sendMessage(std::string userInput) = 0;
-        virtual void handleDisconnect() = 0;
+        ~Chat() {};
         void eventLoop();
     protected:
-        virtual std::string getServerResponse() {return "";};
+        virtual void sendMessage(std::string userInput) = 0;
+        virtual void handleDisconnect() = 0;
         virtual Message* parseResponse(std::string response) = 0;
         virtual void destruct() = 0;
-        virtual void backendSendMessage(std::string message) = 0;
         virtual void sendByeMessage() = 0;
         virtual void sendTimeoutErrMessage() = 0;
+        virtual void handleIncommingMessage(Message* message) = 0;
+        virtual std::string backendGetServerResponse() = 0;
+        virtual void backendSendMessage(std::string message) = 0;
+        Command* handleUserInput(std::string userInput);
         bool msgTypeValidForStateSent(MessageType type);
         bool msgTypeValidForStateReceived(MessageType type);
         void setupAdress(NetworkAdress& sender, sockaddr_in& addr);
-        void handleIncommingMessage(Message* message);
         void printStatusMessage(Message* msg);
         void printMessage(Message* msg);
+        std::string waitForResponse(int* timeLeft);
+        int setNonBlocking(int fd);
         void deleteBuffer() {
             if (buffer != nullptr) {
                 free(buffer);
@@ -40,10 +42,9 @@ class Chat {
             }
         };
         Command* cmdFactory;
-        int sockfd1 = -1;
+        int sockfd = -1;
         sockaddr_in receiver;
         struct clientInfo client;   
-        int setNonBlocking(int fd);
         int epoll_fd;
         std::vector<Message*> backlog;
         FSMState state = FSMState::START;
@@ -55,36 +56,41 @@ class ChatTCP : public Chat {
     public:
         ChatTCP(NetworkAdress& receiver);
         ~ChatTCP();
+    private:
+        std::string backendGetServerResponse() override;
+        void backendSendMessage(std::string message) override;
         void sendMessage(std::string userInput) override;
         void handleDisconnect() override;
         void destruct() override;
         void sendByeMessage() override;
-    private:
-        TCPMessages* tcpFactory;
-        void backendSendMessage(std::string message) override;
-        std::string getServerResponse() override;   
+        void handleIncommingMessage(Message* message) override;
         Message* parseResponse(std::string response) override;
         void waitForResponseWithTimeout();
         void sendTimeoutErrMessage() override;
+        TCPMessages* tcpFactory;
 };
 
 class ChatUDP : public Chat {
     public:
-        ChatUDP(NetworkAdress& sender, NetworkAdress& receiver);
+        ChatUDP(NetworkAdress& sender, int retransmissions, int timeout);
         ~ChatUDP();
+    private:
+        std::string backendGetServerResponse() override;
+        void backendSendMessage(std::string message) override;
         void sendMessage(std::string userInput) override;
         void sendByeMessage() override;
         void handleDisconnect() override;
         void destruct() override; 
-    private:
+        void handleIncommingMessage(Message* message) override;
+        Message* parseResponse(std::string response) override;
+        void sendTimeoutErrMessage() override;
+        bool waitForConfirmation(Message* message);
+        void waitForResponseWithTimeout(Message* msg);
         uint16_t msgCount = 0;
         std::vector<UDPmessaStatus> msgStatus;
         UDPMessages* udpFactory;
-        void backendSendMessage(std::string message) override;
-        void sendTimeoutErrMessage() override;
-        Message* parseResponse(std::string response) override;
-        int sockfd2;
+        int retransmissions = 0;
+        int timeout = 0;
 };
-
 
 #endif // CHAT_HPP

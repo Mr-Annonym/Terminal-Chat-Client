@@ -35,8 +35,16 @@ clean:
 	rm -f $(OBJS) $(ARGOBJS) $(TARGET)
 	rm -rf obj/*
 
+ifeq ($(shell uname), Darwin)
 testTcp:
 	nc -l 4567 -k -c
+else
+testTcp:
+	nc -l -k -p 4567 -C
+endif
 
-.PHONY: all clean argTest zip valgrind rebuild testTcp
+testUDP:
+	python3 udpServer.py
+
+.PHONY: all clean argTest zip valgrind rebuild testTcp testUDP
 

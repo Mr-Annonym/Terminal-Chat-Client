@@ -4,7 +4,6 @@
 #include <fcntl.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-#include <poll.h>
 #include <csignal>
 #include <sys/socket.h>
 #include "chat.hpp"
@@ -14,8 +13,8 @@ ChatTCP::ChatTCP(NetworkAdress& receiver) : Chat(receiver) {
     client.displayName = "unknown"; // default value
     tcpFactory = new TCPMessages(&client);
 
-    sockfd1 = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd1 < 0) {
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) {
         std::cerr << "Error opening socket\n";
         destruct();
         exit(1);
@@ -23,23 +22,50 @@ ChatTCP::ChatTCP(NetworkAdress& receiver) : Chat(receiver) {
 
     sockaddr_in server = this->receiver;
 
-    if (connect(sockfd1, (struct sockaddr *)&server, sizeof(server)) < 0) {
+    if (connect(sockfd, (struct sockaddr *)&server, sizeof(server)) < 0) {
         std::cerr << "Connection failed\n";
         perror("connect");
         destruct();
         exit(1);
     }
 
-    setNonBlocking(sockfd1);
+    setNonBlocking(sockfd);
+}
+
+void ChatTCP::handleIncommingMessage(Message* message) {
+    if (message == nullptr) handleDisconnect();
+
+    // check, if the response is allowed
+    if (!msgTypeValidForStateReceived(message->getType())) {
+        std::string errMsg;
+        if (state == FSMState::AUTH) {
+            errMsg = "Invalid message, expected REPLY but go MESSAGE";
+        } else if (state == FSMState::OPEN) {
+            errMsg = "Invalid message, expected MESSAGE but got REPLY";
+        }
+        MessageErrorTCP* errorMessage = new MessageErrorTCP(client.displayName, errMsg);
+        backendSendMessage(errorMessage->getMessage());
+        handleDisconnect();
+        return;
+    } 
+    
+    // user Message
+    if (typeid(*message) == typeid(MessageMsgTCP) || typeid(*message) == typeid(MessageMsgUDP)) {
+        printMessage(message);
+        return;
+    }
+
+    // Repaly
+    printStatusMessage(message);
 }
 
 // Destructor for ChatTCP (closing the sockets)
 void ChatTCP::destruct() {
     deleteBuffer();
-    if (sockfd1 >= 0) {
-        shutdown(sockfd1, SHUT_RDWR);
-        close(sockfd1);
-        sockfd1 = -1;
+    if (sockfd >= 0) {
+        shutdown(sockfd, SHUT_RDWR);
+        close(sockfd);
+        sockfd = -1;
     }
 }
 
@@ -56,15 +82,14 @@ void ChatTCP::sendMessage(std::string userInput) {
     Message* message = tcpFactory->convertCommandToMessage(command);
     if (message == nullptr || !msgTypeValidForStateSent(message->getType())) {
         if (state == FSMState::START) {
-            std::cerr << "You need to authenticate first\n";
+            std::cerr << "ERROR: you need to authenticate first\n";
             return;
         }
-        std::cerr << "Invalid input try again\n";
+        std::cerr << "ERROR: invalid input, try again or seek /help\n";
         return;
     }
 
-    std::string msg = message->getMessage();
-    backendSendMessage(msg);
+    backendSendMessage(message->getMessage());
 
     // if we sent an auth message or join message, we need to wait for a reply
     MessageType msgType = message->getType();
@@ -74,60 +99,21 @@ void ChatTCP::sendMessage(std::string userInput) {
     waitForResponseWithTimeout();
 }
 
-// method for sending message to server
-void ChatTCP::backendSendMessage(std::string message) {
-    size_t total_sent = 0;
-    size_t message_length = message.size();
-    while (total_sent < message_length) {
-        ssize_t bytes_sent = send(sockfd1, message.c_str() + total_sent, message_length - total_sent, 0);
-        if (bytes_sent < 0) {
-            std::cerr << "Error sending message\n";
-            exit(1);
-        }
-        total_sent += bytes_sent;
-    }
-}
-
 void ChatTCP::waitForResponseWithTimeout() {
-    struct pollfd pfd;
-    pfd.fd = sockfd1;
-    pfd.events = POLLIN;
 
-    std::cout << "waiting for server response...\n";
-
-    int ret;
-    do {
-        ret = poll(&pfd, 1, timeout_ms);
-    } while (ret == -1 && errno == EINTR); // <-- retry on signal interruption
-
-    if (ret > 0 && (pfd.revents & POLLIN)) {
-        std::string responseOut = getServerResponse();
-        Message* message = parseResponse(responseOut);
-        handleIncommingMessage(message);
-        return;
-    } 
-
-    if (ret == 0) {
-        std::cerr << "Timeout waiting for server response\n";
+    int timeLeft = timeout_ms;
+    std::string responseOut = waitForResponse(&timeLeft);
+    // no response -> timeout
+    if (responseOut.empty()) {
+        std::cout << "ERROR: timeout on message recv\n";
         sendTimeoutErrMessage();
         handleDisconnect();
         return;
     }
 
-    std::cerr << "Internal error: poll failed\n";
-    handleDisconnect();
-}
-
-
-// method for receiving server response
-std::string ChatTCP::getServerResponse() {
-    char buffer[1024] = {0};
-    int bytes_received = recv(sockfd1, buffer, sizeof(buffer) - 1, 0);
-    if (bytes_received < 0 || bytes_received == 0) {
-        std::cerr << "Error receiving message or connection closed\n";        
-        handleDisconnect();
-    }
-    return std::string(buffer, bytes_received);
+    // handle the msg
+    Message* msg = parseResponse(responseOut);
+    handleIncommingMessage(msg);
 }
 
 // method for parsing the server response
@@ -137,8 +123,7 @@ Message* ChatTCP::parseResponse(std::string response) {
 
 // method for handling disconnection
 void ChatTCP::handleDisconnect() {
-    std::cout << "\nDisconnecting...\n";
-    sendByeMessage(); // no user name yet
+    sendByeMessage();
     destruct();
     exit(1); // err code .. 
 }
@@ -151,6 +136,33 @@ void ChatTCP::sendByeMessage() {
 }
 
 void ChatTCP::sendTimeoutErrMessage() {
-    MessageErrorTCP* errMessage = new MessageErrorTCP(client.displayName, "Timeout waiting for server response");
+    MessageErrorTCP* errMessage = new MessageErrorTCP(client.displayName, "Timeout while waiting for server response");
     backendSendMessage(errMessage->getMessage());
+}
+
+// method for receiving server response
+std::string ChatTCP::backendGetServerResponse() {
+    // Clear the buffer first
+    memset(this->buffer, 0, BUFFER_SIZE);
+
+    int bytes_received = recv(sockfd, this->buffer, BUFFER_SIZE - 1, 0);
+    if (bytes_received < 0 || bytes_received == 0) {
+        std::cout << "ERROR: receiving message or connection closed\n";        
+        handleDisconnect();
+    }
+    return std::string(this->buffer, bytes_received);
+}
+
+// method for sending message to server
+void ChatTCP::backendSendMessage(std::string message) {
+    size_t total_sent = 0;
+    size_t message_length = message.size();
+    while (total_sent < message_length) {
+        ssize_t bytes_sent = send(sockfd, message.c_str() + total_sent, message_length - total_sent, 0);
+        if (bytes_sent < 0) {
+            std::cerr << "Error sending message\n";
+            exit(1);
+        }
+        total_sent += bytes_sent;
+    }
 }
