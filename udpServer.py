@@ -21,17 +21,17 @@ HOST = "127.0.0.1"
 INITIAL_PORT = 4567
 
 # Configurable delay to simulate packet loss (in seconds)
-PACKET_DELAY_MIN = 0.01
-PACKET_DELAY_MAX = 0.26
+PACKET_DELAY_MIN = 0
+PACKET_DELAY_MAX = 0.2
 
 # Global state
 server_msg_id = 0
 client = None  # Store information about the single connected client
 
 def build_confirm(ref_id):
-    global server_msg_id
+    #global server_msg_id
     msg = struct.pack("!BH", CONFIRM, ref_id)
-    server_msg_id += 1
+    #server_msg_id += 1
     return msg
 
 def build_reply(code, ref_id, message):

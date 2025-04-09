@@ -15,7 +15,7 @@ ChatTCP::ChatTCP(NetworkAdress& receiver) : Chat(receiver) {
 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
-        std::cerr << "Error opening socket\n";
+        std::cout << "Error opening socket\n";
         destruct();
         exit(1);
     }
@@ -23,7 +23,7 @@ ChatTCP::ChatTCP(NetworkAdress& receiver) : Chat(receiver) {
     sockaddr_in server = this->receiver;
 
     if (connect(sockfd, (struct sockaddr *)&server, sizeof(server)) < 0) {
-        std::cerr << "Connection failed\n";
+        std::cout << "Connection failed\n";
         perror("connect");
         destruct();
         exit(1);
@@ -82,10 +82,10 @@ void ChatTCP::sendMessage(std::string userInput) {
     Message* message = tcpFactory->convertCommandToMessage(command);
     if (message == nullptr || !msgTypeValidForStateSent(message->getType())) {
         if (state == FSMState::START) {
-            std::cerr << "ERROR: you need to authenticate first\n";
+            std::cout << "ERROR: you need to authenticate first\n";
             return;
         }
-        std::cerr << "ERROR: invalid input, try again or seek /help\n";
+        std::cout << "ERROR: invalid input, try again or seek /help\n";
         return;
     }
 
@@ -160,7 +160,7 @@ void ChatTCP::backendSendMessage(std::string message) {
     while (total_sent < message_length) {
         ssize_t bytes_sent = send(sockfd, message.c_str() + total_sent, message_length - total_sent, 0);
         if (bytes_sent < 0) {
-            std::cerr << "Error sending message\n";
+            std::cout << "Error sending message\n";
             exit(1);
         }
         total_sent += bytes_sent;
