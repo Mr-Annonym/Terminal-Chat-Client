@@ -256,7 +256,6 @@ void Chat::eventLoop() {
         // Check for server response
         if (fds[1].revents & POLLIN) readMessageFromServer();
         
-
         // Check for SIGINT (Ctrl+C)
         if (fds[2].revents & POLLIN) {
             int sig;

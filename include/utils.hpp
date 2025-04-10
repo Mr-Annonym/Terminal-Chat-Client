@@ -64,5 +64,4 @@ enum class TargetType {
     UNKNOWN
 };
 
-
 #endif // UTILS_HPP

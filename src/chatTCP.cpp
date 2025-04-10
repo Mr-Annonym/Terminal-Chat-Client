@@ -94,7 +94,7 @@ void ChatTCP::handleIncommingMessage(Message* message) {
 
 // Destructor for ChatTCP (closing the sockets)
 void ChatTCP::destruct() {
-    delete msgBuffer;
+    msgBuffer->~MessageBuffer();
     deleteBuffer();
     if (sockfd >= 0) {
         shutdown(sockfd, SHUT_RDWR);
