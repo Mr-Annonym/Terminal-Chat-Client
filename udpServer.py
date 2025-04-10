@@ -29,9 +29,7 @@ server_msg_id = 0
 client = None  # Store information about the single connected client
 
 def build_confirm(ref_id):
-    #global server_msg_id
     msg = struct.pack("!BH", CONFIRM, ref_id)
-    #server_msg_id += 1
     return msg
 
 def build_reply(code, ref_id, message):
@@ -171,18 +169,24 @@ def client_listener(sock, client_addr):
             print(f"\n[RECEIVED] Type: 0x{msg_type:02X}, ID: {msg_id}, From: {addr}")
             
             # Send confirm immediately
-            confirm_msg = build_confirm(msg_id)
-            simulate_packet_delay()  # Simulate packet delay
-            sock.sendto(confirm_msg, addr)
-            print(f"[SENT] Confirm for ID {msg_id}")
+            if msg_type != CONFIRM:
+                confirm_msg = build_confirm(msg_id)
+                simulate_packet_delay()  # Simulate packet delay
+                sock.sendto(confirm_msg, addr)
+                print(f"[SENT] Confirm for ID {msg_id}")
             
+            if msg_type == CONFIRM:
+                print(f"[CONFIRM] Received confirm for ID {msg_id}")
+                continue
+
             # Check if we've seen this message ID
-            if msg_id in client['seen_ids']:
+            if msg_id in client['seen_ids'] and msg_type != CONFIRM:
                 print(f"[INFO] Duplicate message ID {msg_id} - already processed")
                 continue
             
             # Mark message as seen
-            client['seen_ids'].add(msg_id)
+            if msg_type != CONFIRM:
+                client['seen_ids'].add(msg_id)
             
             # Process message based on type
             if msg_type == JOIN:

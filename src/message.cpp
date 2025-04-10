@@ -88,8 +88,9 @@ unsigned int UDPMessages::getNextZeroIdx(std::string message, unsigned int start
 Message* UDPMessages::readResponse(std::string resopnse) {
 
     // need to read the first byte to determine the message type
-    uint16_t msgType = static_cast<uint16_t>(resopnse[0]);
+    uint8_t msgType = static_cast<uint8_t>(resopnse[0]);
     uint16_t msgID1 = (static_cast<uint16_t>(resopnse[1]) << 8) | static_cast<uint16_t>(resopnse[2]);
+    // print out mesage type and msgID
     unsigned int idx1, idx2, idx3;
     try {
         switch (msgType) {

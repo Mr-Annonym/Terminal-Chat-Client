@@ -42,6 +42,12 @@ void ChatUDP::destruct() {
     }
 }
 
+void ChatUDP::readMessageFromServer() {
+    std::string response = backendGetServerResponse();
+    Message* message = parseResponse(response);
+    handleIncommingMessage(message);
+}
+
 Message* ChatUDP::parseResponse(std::string response) {
     // parse the response and return the message object
     return udpFactory->readResponse(response);;
@@ -98,6 +104,15 @@ bool ChatUDP::waitForConfirmation(Message* msg) {
         // not a valid response
         Message* message = parseResponse(responseOut);
         if (message == nullptr) continue;        
+
+        // got a ping message
+        if (message->getType() == MessageType::PING) {
+            uint16_t msgId = message->getId();
+            MessageConfirm* msg = new MessageConfirm(msgId);
+            backendSendMessage(msg->getMessage());
+            continue;
+        }   
+
         if (message->getType() != MessageType::CONFIRM) continue;
         if (msgID != message->getId()) continue;
         return true;
@@ -133,18 +148,41 @@ void ChatUDP::waitForResponseWithTimeout(Message* msg) {
         
         MessageType type = message->getType();
 
+        // ping message
+        if (type == MessageType::PING) {
+            uint16_t msgId = message->getId();
+            MessageConfirm* msg = new MessageConfirm(msgId);
+            backendSendMessage(msg->getMessage());
+            continue;
+        }
+
+        if (type == MessageType::MSG) {
+            // send a confirmation message
+            uint16_t msgId = message->getId();
+            MessageConfirm* msg = new MessageConfirm(msgId);
+            backendSendMessage(msg->getMessage());
+            // print the message
+            printMessage(message);
+            continue;
+        }
+
         // confirmation message
         if (type == MessageType::CONFIRM) continue;
         if (type != MessageType::pREPLY && type != MessageType::nREPLY) continue;
         
-        // reply msg
+        // reply to msg
         if (msgID != msg->getId()) { // mby continue here?
             std::cout << "ERROR: invalid message received\n";
             handleDisconnect();
-            return;
+            continue;
+        }
+        
+        // we have a good reply
+        // dynamic switching, after auth
+        if (msg->getType() == MessageType::AUTH && state == FSMState::AUTH) {
+            receiver.sin_port = sender_addr.sin_port; 
         }
 
-        // we have a good reply
         handleIncommingMessage(message);
         return;
     }
@@ -158,6 +196,13 @@ void ChatUDP::waitForResponseWithTimeout(Message* msg) {
 // method for handling incoming messages
 void ChatUDP::handleIncommingMessage(Message* message) {
     if (message == nullptr) handleDisconnect();
+
+    if (message->getType() == MessageType::PING) {
+        uint16_t msgId = message->getId();
+        MessageConfirm* msg = new MessageConfirm(msgId);
+        backendSendMessage(msg->getMessage());
+        return;
+    }
 
     // first, check if the response is allowed
     if (!msgTypeValidForStateReceived(message->getType())) {
@@ -243,7 +288,6 @@ void ChatUDP::backendSendMessage(std::string message) {
 
 // method for receiving server response (UDP)
 std::string ChatUDP::backendGetServerResponse() {
-    sockaddr_in sender_addr;
     socklen_t sender_len = sizeof(sender_addr);
 
     // Clear the buffer first

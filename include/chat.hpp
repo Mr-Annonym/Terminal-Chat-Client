@@ -10,7 +10,7 @@
 #include "message.hpp"
 #include "settings.hpp"
 #include "utils.hpp"
-
+#include "messageBuffer.hpp"
 
 class Chat {
     public:
@@ -24,6 +24,7 @@ class Chat {
         virtual void destruct() = 0;
         virtual void sendByeMessage() = 0;
         virtual void sendTimeoutErrMessage() = 0;
+        virtual void readMessageFromServer() = 0;
         virtual void handleIncommingMessage(Message* message) = 0;
         virtual std::string backendGetServerResponse() = 0;
         virtual void backendSendMessage(std::string message) = 0;
@@ -44,6 +45,7 @@ class Chat {
         Command* cmdFactory;
         int sockfd = -1;
         sockaddr_in receiver;
+        sockaddr_in sender_addr;
         struct clientInfo client;   
         int epoll_fd;
         std::vector<Message*> backlog;
@@ -57,6 +59,7 @@ class ChatTCP : public Chat {
         ChatTCP(NetworkAdress& receiver);
         ~ChatTCP();
     private:
+        void readMessageFromServer() override;
         std::string backendGetServerResponse() override;
         void backendSendMessage(std::string message) override;
         void sendMessage(std::string userInput) override;
@@ -68,6 +71,8 @@ class ChatTCP : public Chat {
         void waitForResponseWithTimeout();
         void sendTimeoutErrMessage() override;
         TCPMessages* tcpFactory;
+        MessageBuffer* msgBuffer = new MessageBuffer();
+        std::string currentMessage;
 };
 
 class ChatUDP : public Chat {
@@ -75,6 +80,7 @@ class ChatUDP : public Chat {
         ChatUDP(NetworkAdress& sender, int retransmissions, int timeout);
         ~ChatUDP();
     private:
+        void readMessageFromServer() override;
         std::string backendGetServerResponse() override;
         void backendSendMessage(std::string message) override;
         void sendMessage(std::string userInput) override;

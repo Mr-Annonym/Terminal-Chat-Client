@@ -29,7 +29,40 @@ ChatTCP::ChatTCP(NetworkAdress& receiver) : Chat(receiver) {
         exit(1);
     }
 
+    // to sotre the current message, that can arrive in chunks
+    currentMessage.reserve(BUFFER_SIZE); 
+
     setNonBlocking(sockfd);
+}
+
+void ChatTCP::readMessageFromServer() {
+
+    std::string response = backendGetServerResponse();
+
+    char currentChar = '\0';
+    char prevChar = '\0';
+    for (unsigned i = 0; i < response.size(); i++) {
+        currentChar = response[i];
+        currentMessage += currentChar;
+
+        // we have a complete message
+        if (currentChar == '\n' && prevChar == '\r') {
+            msgBuffer->addMessage(currentMessage);
+            currentMessage.clear();
+        }
+        
+        prevChar = currentChar;
+    }
+
+    // handle incoming messages
+    while (!msgBuffer->isEmpty()) {
+        std::string message = msgBuffer->getMessage();
+        if (message.empty()) continue;
+
+        // parse the message
+        Message* msg = parseResponse(message);
+        handleIncommingMessage(msg);
+    }
 }
 
 void ChatTCP::handleIncommingMessage(Message* message) {
@@ -61,6 +94,7 @@ void ChatTCP::handleIncommingMessage(Message* message) {
 
 // Destructor for ChatTCP (closing the sockets)
 void ChatTCP::destruct() {
+    delete msgBuffer;
     deleteBuffer();
     if (sockfd >= 0) {
         shutdown(sockfd, SHUT_RDWR);
@@ -103,6 +137,7 @@ void ChatTCP::waitForResponseWithTimeout() {
 
     int timeLeft = timeout_ms;
     std::string responseOut = waitForResponse(&timeLeft);
+    // do buffer stuff here
     // no response -> timeout
     if (responseOut.empty()) {
         std::cout << "ERROR: timeout on message recv\n";

@@ -24,6 +24,7 @@ Chat::Chat(NetworkAdress& receiver) {
 }
 
 void Chat::setupAdress(NetworkAdress& sender, sockaddr_in& addr) {
+
     addr.sin_family = AF_INET;
     addr.sin_port = htons(sender.port);
     if (inet_pton(AF_INET, sender.ip.c_str(), &addr.sin_addr) <= 0) {
@@ -156,7 +157,14 @@ Command* Chat::handleUserInput(std::string userInput) {
     if (userInput.empty()) return nullptr;
 
     Command* command = cmdFactory->createCommand(userInput);
-    return command;
+    if (typeid(*command) != typeid(CommandRename)) return command;
+
+    CommandRename* renameCmd = dynamic_cast<CommandRename*>(command);
+    if (renameCmd) {
+        client.displayName = renameCmd->getNewName();
+        std::cout << "Action sucsess: Display name changed to: " << client.displayName << std::endl;
+    }
+    return nullptr;
 }
 
 std::string Chat::waitForResponse(int* timeLeft) {
@@ -246,11 +254,8 @@ void Chat::eventLoop() {
         }
 
         // Check for server response
-        if (fds[1].revents & POLLIN) {
-            std::string response = backendGetServerResponse();
-            Message* message = parseResponse(response);
-            handleIncommingMessage(message);
-        }
+        if (fds[1].revents & POLLIN) readMessageFromServer();
+        
 
         // Check for SIGINT (Ctrl+C)
         if (fds[2].revents & POLLIN) {
