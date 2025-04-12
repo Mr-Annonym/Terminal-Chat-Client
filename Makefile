@@ -46,5 +46,9 @@ endif
 testUDP:
 	python3 udpServer.py
 
-.PHONY: all clean argTest zip valgrind rebuild testTcp testUDP
+umlDiagram:
+	hpp2plantuml -i "./include/*.hpp" -o output.puml
+	plantuml -tsvg output.puml
+
+.PHONY: all clean argTest zip valgrind rebuild testTcp testUDP umlDiagram
 

@@ -7,6 +7,7 @@
 #include <poll.h>
 #include <csignal>
 #include <sys/socket.h>
+#include <cstring>
 #include "chat.hpp"
 
 ChatUDP::ChatUDP(NetworkAdress& receiver, int retransmissions, int timeout) : Chat(receiver) {

@@ -6,6 +6,8 @@
 #include <unistd.h>
 #include <csignal>
 #include <sys/socket.h>
+#include <cstring>
+#include <cstring>
 #include "chat.hpp"
 
 // Constructor for ChatTCP
@@ -40,7 +42,7 @@ void ChatTCP::readMessageFromServer() {
     std::string response = backendGetServerResponse();
 
     char currentChar = '\0';
-    char prevChar = '\0';
+    char prevChar = (currentMessage.empty()) ? '\0' : currentMessage.back();
     for (unsigned i = 0; i < response.size(); i++) {
         currentChar = response[i];
         currentMessage += currentChar;

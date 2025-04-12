@@ -51,7 +51,7 @@ class Chat {
         std::vector<Message*> backlog;
         FSMState state = FSMState::START;
         char* buffer;
-        int timeout_ms = 10000; // 5 seconds
+        int timeout_ms = 5000; // 5 seconds
 };
 
 class ChatTCP : public Chat {
