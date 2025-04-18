@@ -1,3 +1,9 @@
+/**
+ * @file command.cpp
+ * @brief Implementation of the Command class
+ * @author Martin Mendl <x247581>
+ * @date 18.4.2025
+*/
 
 #include <iostream>
 #include <string>
@@ -5,11 +11,11 @@
 #include <stdexcept>
 #include "command.hpp"
 
+// factory method to creating a command form user input
 Command* Command::createCommand(std::string userInput) {
     // check if the userInput is empty
-    if (userInput.empty()) {
-        return nullptr;
-    }
+    if (userInput.empty()) return nullptr;
+
     try {
         // Check if the userInput starts with a '/'
         if (userInput.find("/") == 0) {
@@ -34,6 +40,7 @@ Command* Command::createCommand(std::string userInput) {
     return new CommandMessage(userInput);
 }
 
+// help
 void Command::printHelp() const {
     std::cout << "+----------+----------------------------------+------------------------------------------+\n";
     std::cout << "| Command  | Parameters                       | Description                              |\n";
@@ -68,6 +75,7 @@ CommandAuth::CommandAuth(std::string userInput) {
     std::cout <<"ERROR: Invalid format for /auth command.\n" << std::flush;;
 }
 
+// represent for debug
 void CommandAuth::represent() {
     std::cout << "Command: AUTH\n";
     std::cout << "Username: " << username << "\n";
@@ -97,6 +105,7 @@ CommandJoin::CommandJoin(std::string userInput) {
     std::cout <<"ERROR: Invalid format for /join command.\n" << std::flush;;
 }
 
+// represent for debug
 void CommandJoin::represent() {
     std::cout << "Command: JOIN\n";
     std::cout << "Channel ID: " << channelId << "\n" << std::flush;;
@@ -123,11 +132,13 @@ CommandRename::CommandRename(std::string userInput) {
     std::cout <<"ERROR: Invalid format for /rename command.\n" << std::flush;;
 }
 
+// represent for debug
 void CommandRename::represent() {
     std::cout << "Command: RENAME\n";
     std::cout << "New Name: " << newName << "\n" << std::flush;;
 }
 
+// constructor for command message
 CommandMessage::CommandMessage(std::string userInput) {
     if (userInput.empty()) {
         std::cout <<"ERROR: Empty message.\n" << std::flush;;
@@ -136,6 +147,7 @@ CommandMessage::CommandMessage(std::string userInput) {
     message = userInput;
 }
 
+// represent for debug
 void CommandMessage::represent() {
     std::cout << "Command: MESSAGE\n";
     std::cout << "Message: " << message << "\n" << std::flush;;

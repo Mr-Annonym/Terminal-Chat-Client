@@ -1,3 +1,10 @@
+/**
+ * @file chat.cpp
+ * @brief Implementation of the Chat class
+ * @author Martin Mendl <x247581>
+ * @date 18.4.2025
+*/
+
 #include <iostream>
 #include <string>
 #include <sys/socket.h>
@@ -10,13 +17,16 @@
 #include <chrono>
 #include "chat.hpp"
 
+// global wariable, this is only used, since I did not find a better way to pass in the ctrl+c signal to poll
 int sigfds[2]; 
 
+// function to handle the ctrl+c signal
 void signalHandler(int sig) {
     // Notify poll() about the signalds
     write(sigfds[1], &sig, sizeof(sig)); 
 }
 
+// Constructor for Chat class
 Chat::Chat(NetworkAdress& receiver) {
     cmdFactory = new Command();
     setupAdress(receiver, this->receiver);
@@ -24,6 +34,7 @@ Chat::Chat(NetworkAdress& receiver) {
     buffer = (char *)malloc(sizeof(char) * BUFFER_SIZE);
 }
 
+// Method to setup the adress struct
 void Chat::setupAdress(NetworkAdress& sender, sockaddr_in& addr) {
 
     addr.sin_family = AF_INET;
@@ -34,17 +45,20 @@ void Chat::setupAdress(NetworkAdress& sender, sockaddr_in& addr) {
     }
 }
 
+// Method to set a fd to non-blocking mode
 int Chat::setNonBlocking(int fd) {
     int flags = fcntl(fd, F_GETFL, 0);
     return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
 
+// Method to print a status message
 void Chat::printStatusMessage(Message* msg) {
-    if (msg == nullptr) return;
-    std::string actionName = (state == FSMState::AUTH) ? "Auth" : "Join";
+    if (msg == nullptr) return; // something went wrong
+
     bool isOk;
     std::string content;
 
+    // dynamic cast only used for casting inharited classes
     if (dynamic_cast<MessageReplyTCP*>(msg)) {
         MessageReplyTCP* msgMsg = dynamic_cast<MessageReplyTCP*>(msg);
         isOk = msgMsg->isReplyOk();
@@ -55,12 +69,17 @@ void Chat::printStatusMessage(Message* msg) {
         isOk = msgMsg->isReplyOk();
         content = msgMsg->getContent();
     }
+
+    // print the status message
     std::string status = isOk ? "Success" : "Failure";  
     std::cout << "Action " << status << ": " << content << std::endl << std::flush;
 }
 
+// Method to print out a message form the server
 void Chat::printMessage(Message* msg) {
-    if (msg == nullptr) return;
+    if (msg == nullptr) return; // something went wrong
+
+    // dynamic cast only used for casting inharited classes
     if (dynamic_cast<MessageMsgTCP*>(msg)) {
         MessageMsgTCP* msgMsg = dynamic_cast<MessageMsgTCP*>(msg);
         std::cout << msgMsg->getDisplayName() << ": " << msgMsg->getContent() << std::endl << std::flush;
@@ -72,6 +91,7 @@ void Chat::printMessage(Message* msg) {
     }
 }
 
+// Method to check, if a given sent message is valid for the current state
 bool Chat::msgTypeValidForStateSent(MessageType type) {
 
     // bye can be sent form anywhere, exit program
@@ -110,9 +130,9 @@ bool Chat::msgTypeValidForStateSent(MessageType type) {
     return false;
 }
 
+// method to validate if a given incoming message is valid for the current state
 bool Chat::msgTypeValidForStateReceived(MessageType type) {
     // in case i get err or bye, just exit
-
     if (
         type == MessageType::ERR || 
         type == MessageType::BYE ||
@@ -155,13 +175,16 @@ bool Chat::msgTypeValidForStateReceived(MessageType type) {
     return false;
 }
 
+// Method to handle the user input (convert user input into a command)
 Command* Chat::handleUserInput(std::string userInput) {
     if (userInput.empty()) return nullptr;
 
+    // if it is not a rename, return the command
     Command* command = cmdFactory->createCommand(userInput);
     if (command == nullptr) return nullptr;
     if (typeid(*command) != typeid(CommandRename)) return command;
 
+    // handle rename cmd
     CommandRename* renameCmd = dynamic_cast<CommandRename*>(command);
     if (renameCmd) {
         client.displayName = renameCmd->getNewName();
@@ -170,6 +193,7 @@ Command* Chat::handleUserInput(std::string userInput) {
     return nullptr;
 }
 
+// Method to wait for a response from the server with a timeout
 std::string Chat::waitForResponse(int* timeLeft) {
 
     if (!timeLeft || *timeLeft <= 0) return "";
@@ -203,6 +227,7 @@ std::string Chat::waitForResponse(int* timeLeft) {
     return ""; // To make compiler happy
 }
 
+// Method to create the event loop (run the chat client)
 void Chat::eventLoop() {
     if (sockfd < 0) {
         std::cout << "ERROR: socket inicialization faild\n" << std::flush;
@@ -226,12 +251,15 @@ void Chat::eventLoop() {
     }
 
     struct pollfd fds[3];
+    // user input
     fds[0].fd = STDIN_FILENO;
     fds[0].events = POLLIN;
 
+    // server response
     fds[1].fd = sockfd;
     fds[1].events = POLLIN;
 
+    // ctrl+c signal
     fds[2].fd = sigfds[0]; // Signal notification via socketpair
     fds[2].events = POLLIN;
     int ret;
@@ -239,7 +267,7 @@ void Chat::eventLoop() {
     while (true) {
         do {
             ret = poll(fds, 3, -1);
-        } while (ret == -1 && errno == EINTR); // Retry on signal interruption
+        } while (ret == -1 && errno == EINTR); // Retry on signal interruption (ctr+c someties results in EINTR in my testing)
 
         // poll error 
         if (ret == -1 && errno != EINTR) {
@@ -253,6 +281,7 @@ void Chat::eventLoop() {
             if (!std::getline(std::cin, userMessage)) { // Handle EOF
                 handleDisconnect(); // Custom method to send disconnect signal
             }
+            // handle the user input
             if (!userMessage.empty()) sendMessage(userMessage);
         }
 
@@ -267,7 +296,7 @@ void Chat::eventLoop() {
         }
     }
 
-    // Clean up before exiting
+    // Clean up before exiting (not really needed, but just to be safe)
     close(sigfds[0]);
     close(sigfds[1]);
     destruct();

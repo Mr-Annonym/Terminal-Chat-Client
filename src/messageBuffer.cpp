@@ -1,3 +1,10 @@
+/**
+ * @file messageBuffer.cpp
+ * @brief Implementation of the MessageBuffer class
+ * @author Martin Mendl <x247581>
+ * @date 18.4.2025
+*/
+
 #include "messageBuffer.hpp"
 
 // Constructor

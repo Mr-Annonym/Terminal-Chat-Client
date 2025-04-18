@@ -1,4 +1,9 @@
-
+/**
+ * @file settings.cpp
+ * @brief Implementation of the Settings class
+ * @author Martin Mendl <x247581>
+ * @date 18.4.2025
+*/
 #include <iostream>
 #include <string>
 #include <stdexcept>
@@ -23,6 +28,7 @@ TargetType determinTargetType(const std::string &target) {
     return TargetType::UNKNOWN;
 } 
 
+// method to get the ip form a domain
 std::string Settings::getIpFromDomain(const std::string& domain) {
     struct addrinfo hints{}, *res, *p;
     char ipStr[INET_ADDRSTRLEN]; // Buffer for IPv4 address
@@ -45,20 +51,21 @@ std::string Settings::getIpFromDomain(const std::string& domain) {
     return ""; // No IPv4 address found
 }
 
+// constructor for settings class (argument parser)
 Settings::Settings(int argc, char* argv[]) {
-    // Default values for optional arguments
 
-    //memset(&server, 0, sizeof(server));
-    server.ipVer = IpVersion::None; // indicate not set
+    server.ipVer = IpVersion::None; // not set by default
     server.port = 4567; // default port
 
     udpTimeoutConfirmation = 250; // default timeout
     maxUdpRetransmissions = 3; // default max retransmissions
     mode = Mode::NONE; // default mode
 
+    // parse args
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
 
+        // mode
         if (arg == "-t" && i + 1 < argc) {
             std::string protocol = argv[++i];
             if (protocol != "tcp" && protocol != "udp") {
@@ -68,6 +75,7 @@ Settings::Settings(int argc, char* argv[]) {
             continue;   
         }
         
+        // source
         if (arg == "-s" && i + 1 < argc) {
             std::string serverArg = argv[++i];
             TargetType result = determinTargetType(serverArg);
@@ -96,24 +104,33 @@ Settings::Settings(int argc, char* argv[]) {
             if (server.ip.empty()) throw std::invalid_argument("Could not resolve domain: " + serverArg);
             continue;
         }
+        // port
         if (arg == "-p" && i + 1 < argc) {
             server.port = static_cast<uint16_t>(std::stoi(argv[++i]));
             continue;
 
         } 
+
+        // udp timeout
         if (arg == "-d" && i + 1 < argc) {
             udpTimeoutConfirmation = static_cast<uint16_t>(std::stoi(argv[++i]));
             continue;
         } 
+
+        // udp retransmition
         if (arg == "-r" && i + 1 < argc) {
             maxUdpRetransmissions = static_cast<uint8_t>(std::stoi(argv[++i]));
             continue;
         } 
+
+        // help
         if (arg == "-h") {
             printHelp();
             std::exit(0);
             continue;   
         } 
+
+        // invalid argument
         throw std::invalid_argument("Unknown or malformed argument: " + arg);
     }
 
@@ -123,6 +140,7 @@ Settings::Settings(int argc, char* argv[]) {
     }
 }
 
+// method to represent the settings (debug)
 void Settings::representSettings() const {
     std::cout << "Settings:\n"
               << "  Mode: " << (mode == Mode::TCP ? "TCP" : "UDP") << "\n"
@@ -134,6 +152,7 @@ void Settings::representSettings() const {
               << "  Max UDP Retransmissions: " << maxUdpRetransmissions << "\n" << std::flush;;
 }
 
+// method to print help
 void Settings::printHelp() const {
     std::cout << "Usage: program [options]\n"
               << "Options:\n"

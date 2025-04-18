@@ -1,4 +1,9 @@
-
+/**
+ * @file command.hpp
+ * @brief Header file for the Command class
+ * @author Martin Mendl <x247581>
+ * @date 18.4.2025
+ */
 #ifndef COMMAND_HPP
 #define COMMAND_HPP
 

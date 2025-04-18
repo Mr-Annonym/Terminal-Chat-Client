@@ -1,3 +1,10 @@
+/**
+ * @file chatUDP.cpp
+ * @brief Implementation of the ChatUDP class
+ * @author Martin Mendl <x247581>
+ * @date 18.4.2025
+*/
+
 #include <iostream>
 #include <string>
 #include <sys/socket.h>
@@ -10,21 +17,26 @@
 #include <cstring>
 #include "chat.hpp"
 
+// Constructor for ChatUDP
 ChatUDP::ChatUDP(NetworkAdress& receiver, int retransmissions, int timeout) : Chat(receiver) {
-    client.displayName = "unknown"; // can be changed later
+
+    // attributes
+    client.displayName = "unknown"; // default value
     this->retransmissions = retransmissions;
     this->timeout = timeout;
 
+    // create the udp factory
     udpFactory = new UDPMessages(&client);
 
-    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    // setup socket
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0); 
     if (sockfd < 0) {
         std::cout << "ERROR: faild to create a socket\n" << std::flush;
         destruct();
         exit(1);
     }
 
-    // Set the socket to non-blocking mode
+    // Set the socket to non-blocking mode since I am using poll
     setNonBlocking(sockfd);
 }
 
@@ -35,35 +47,43 @@ ChatUDP::~ChatUDP() {
 
 // method for ending the communication with the server
 void ChatUDP::destruct() {
-    deleteBuffer();
-    if (sockfd >= 0) {
+    deleteBuffer(); // free memory
+    if (sockfd >= 0) { // close socket
         shutdown(sockfd, SHUT_RDWR);
         close(sockfd);
         sockfd = -1;
     }
 }
 
+// method for reading a message from the server
 void ChatUDP::readMessageFromServer() {
+    // 1. get the server response
     std::string response = backendGetServerResponse();
+    // 2. handle confirmation/ping or exit on bye
     if (!handleConfirmation(response)) return;
+    // 3. parse the response
     Message* message = parseResponse(response);
+    // 4. handle the message
     handleIncommingMessage(message);
 }
 
+// method for parsing the server response
 Message* ChatUDP::parseResponse(std::string response) {
     // parse the response and return the message object
     return udpFactory->readResponse(response);
 }
 
-// gets the command, creates the message obj and calls backendSendMessage
+// method for sending a message to the server
 void ChatUDP::sendMessage(std::string userInput) {
 
-    // first send the message
+    // parse the user input
     Command* command = handleUserInput(userInput);
-    if (command == nullptr) return;
+    if (command == nullptr) return; // invalid user input
 
+    // create the message, form the user Command
     Message* msg = udpFactory->convertCommandToMessage(msgCount, command);
 
+    // check if the message is good with the FSM
     if (msg == nullptr || !msgTypeValidForStateSent(msg->getType())) {
         if (state == FSMState::START) {
             std::cout << "ERROR: you authenticate first\n" << std::flush;
@@ -77,10 +97,12 @@ void ChatUDP::sendMessage(std::string userInput) {
     transmitMessage(msg);
 }
 
-
+// method for sending a message to the server
 void ChatUDP::transmitMessage(Message* msg) {
-    // handle retransmitions
+
     MessageType type = msg->getType();
+    
+    // handle retransmitions
     for (int attempt = 0; attempt < retransmissions; ++attempt) {
         // send the message
         backendSendMessage(msg->getMessage());
@@ -95,51 +117,60 @@ void ChatUDP::transmitMessage(Message* msg) {
             return;
         };
     }
-   
+    
+    // no response -> timeout
     std::cout << "ERROR: connection dropped\n" << std::flush;
     handleDisconnect();
 };
 
+// method to handle confirming messages (should be run, after i get a response form the server)
 bool ChatUDP::handleConfirmation(std::string message) {
 
-    // if the messsage is not at least 3 bytes long, just return, errors are handles outside
+    // if the messsage is not at least 3 bytes long, just return, errors are handled outside
     if (message.length() < 3) return true;
-    // firstly, need to extrac the first byte, to determin, what messsage it si
+    // firstly, need to extract the first byte, to determin, what messsage it si
     uint8_t msgType = message[0];
     // in case we got a comfirmation message we just return
     if (msgType == 0x00) return false;
-    // need to send a confirmation back, that i got the message
-    uint16_t msgID = static_cast<uint16_t>(message[1]) << 8 | static_cast<uint16_t>(message[2]);
+
     // get the msgId
+    uint16_t msgID = static_cast<uint16_t>(message[1]) << 8 | static_cast<uint16_t>(message[2]);
 
     // create a confirm message and send it to the server
     MessageConfirm* msg = new MessageConfirm(msgID);
     backendSendMessage(msg->getMessage());
 
+    // bye message
     if (msgType == 0xFF) {
         // got a bye message, need to disconnect
         std::cout << "ERROR: server disconnected\n" << std::flush;
+        destruct();
         exit(0);
     }
     return (msgType == 0xFD)? false :true;
 }
 
+// method for waiting for a confirm message
 bool ChatUDP::waitForConfirmation(Message* msg) {
 
+    // timeout set during constructor
     int timeLeft = this->timeout;
     uint16_t msgID = msg->getId();
 
+    // if there is time left
     while (timeLeft > 0) {
+        // get a response
         std::string responseOut = waitForResponse(&timeLeft);
 
-        // timeout
+        // not tome left -> timeout
         if (responseOut.empty() && timeLeft <= 0) {
             return false;
         }
 
+        // parse the message
         Message* message = parseResponse(responseOut);
 
-        // messages other than confirm/ping
+        // messages other than confirm/ping need to be handled
         if (handleConfirmation(responseOut)) {
             handleIncommingMessage(message);
             continue;
@@ -156,14 +187,17 @@ bool ChatUDP::waitForConfirmation(Message* msg) {
     return false;
 }
 
-// when this receaves a msg, it will send a comfirm back (mby not needed) 
+// method for waiting for a responce from the server (eg. for a reply)
 void ChatUDP::waitForResponseWithTimeout(Message* msg) {
 
     int timeLeft = timeout_ms;
     uint16_t msgID = msg->getId();
 
+    // if there is time left
     while (timeLeft > 0) {
+        // read form server
         std::string responseOut = waitForResponse(&timeLeft);
+
         // ping and confirmation are handled here
         if (!handleConfirmation(responseOut)) continue; 
 
@@ -174,6 +208,7 @@ void ChatUDP::waitForResponseWithTimeout(Message* msg) {
             handleDisconnect();
         }
 
+        // parse response
         Message* message = parseResponse(responseOut);
 
         // not a valid response
@@ -186,18 +221,27 @@ void ChatUDP::waitForResponseWithTimeout(Message* msg) {
         
         MessageType type = message->getType();
         
+        // not a reply message, need to handle it
         if (type != MessageType::pREPLY && type != MessageType::nREPLY) handleIncommingMessage(message);
 
-        // reply to msg
-        if (msgID != msg->getId()) continue;
+        MessageReplyUDP* rplyMsg = dynamic_cast<MessageReplyUDP*>(message);
+        if (rplyMsg == nullptr) {
+            std::cerr << "faild to dynamic cast\n";
+            destruct();
+            exit(1);
+        }
+
+        // bad reply 
+        if (msgID != rplyMsg->getRefId()) continue;
         
-        // we have a good reply
+        // need to call the msgTypeValid for advancing the FSM
         if (!msgTypeValidForStateReceived(type)) {
             std::cout << "ERROR: invalid message type, expected REPLY but got MESSAGE\n" << std::flush;
             MessageErrorUDP* errMsg = new MessageErrorUDP(msgCount, client.displayName, "Invalid message type");
             transmitMessage(errMsg);
             handleDisconnect();
         }
+
         // Repaly
         printStatusMessage(message);
         return;
@@ -288,6 +332,7 @@ void ChatUDP::sendTimeoutErrMessage() {
     }
 };
 
+// simple send message to the server
 void ChatUDP::backendSendMessage(std::string message) {
     ssize_t bytes_sent = sendto(
         sockfd,
@@ -305,7 +350,7 @@ void ChatUDP::backendSendMessage(std::string message) {
     }
 }
 
-// method for receiving server response (UDP)
+// method for receiving server response 
 std::string ChatUDP::backendGetServerResponse() {
     socklen_t sender_len = sizeof(sender_addr);
 

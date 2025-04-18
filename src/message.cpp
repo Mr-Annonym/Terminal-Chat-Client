@@ -1,13 +1,20 @@
-
+/**
+ * @file message.cpp
+ * @brief Implementation of the Message class and its derived classes
+ * @author Martin Mendl <x247581>
+ * @date 18.4.2025
+ */
 #include <regex>
 #include <iostream>
 #include "message.hpp"
 
+// function to findt out if a string starts with a prefix
 bool startsWith(const std::string& str, const std::string& prefix) {
     return str.rfind(prefix, 0) == 0;  // Check if found at position 0
 }
 
-Message* TCPMessages::readResponse(std::string resopnse) {
+// TCP factory method, to read a response
+Message* TCPMessages::readResponse(const std::string &resopnse) {
     if (startsWith(resopnse, "REPLY")) {
          std::regex pattern(R"(^\s*REPLY\s+(\S+)\s+IS\s+(.*)\r\n$)");
         std::smatch matches;
@@ -77,7 +84,8 @@ Message* TCPMessages::readResponse(std::string resopnse) {
     return nullptr; // Unknown message type
 }
 
-std::size_t UDPMessages::getNextZeroIdx(std::string message, std::size_t startIdx) {
+// method to get the next index of a x00 byte in a string
+std::size_t UDPMessages::getNextZeroIdx(const std::string& message, std::size_t startIdx) {
     std::size_t idx = message.find('\0', startIdx);
     if (idx == std::string::npos) {
         return message.size();
@@ -85,7 +93,8 @@ std::size_t UDPMessages::getNextZeroIdx(std::string message, std::size_t startId
     return idx;
 }
 
-Message* UDPMessages::readResponse(std::string resopnse) {
+// factory method for udp (converting packets to Message objects)
+Message* UDPMessages::readResponse(const std::string& resopnse) {
 
     // need to read the first byte to determine the message type
     uint8_t msgType = static_cast<uint8_t>(resopnse[0]);
@@ -209,17 +218,13 @@ Message* TCPMessages::convertCommandToMessage(Command* command) {
 }
 
 // ERR message
-MessageError::MessageError(std::string displayName, std::string content) {
+MessageError::MessageError(const std::string& displayName, const std::string& content) {
     this->displayName = displayName;
     this->content = content;
 }
 
 // Constructor for MessageErrorUDP
-MessageErrorUDP::MessageErrorUDP(
-    uint16_t msgID, 
-    std::string displayName, 
-    std::string content
-) : MessageError(displayName, content) {
+MessageErrorUDP::MessageErrorUDP(uint16_t msgID, const std::string& displayName, const std::string& content) : MessageError(displayName, content) {
     this->msgID = msgID;
 }
 
@@ -249,18 +254,13 @@ std::string MessageErrorTCP::getMessage() {
 }
 
 // REPLY message
-MessageReply::MessageReply(bool isOk, std::string content) {
+MessageReply::MessageReply(bool isOk, const std::string& content) {
     this->isOk = isOk;
     this->content = content;
 }
 
 // Constructor for MessageReplyUDP
-MessageReplyUDP::MessageReplyUDP(
-    uint16_t msgID, 
-    bool isOk, 
-    uint16_t refMsgID, 
-    std::string content
-) : MessageReply(isOk, content) {
+MessageReplyUDP::MessageReplyUDP(uint16_t msgID, bool isOk, uint16_t refMsgID, const std::string& content) : MessageReply(isOk, content) {
     this->msgID = msgID;
     this->refMsgID = refMsgID;
 }
@@ -292,7 +292,7 @@ std::string MessageReplyTCP::getMessage() {
 }
 
 // AUTH message
-MessageAuth::MessageAuth(std::string username, std::string displayName, std::string secret) {
+MessageAuth::MessageAuth(const std::string& username, const std::string& displayName, const std::string& secret) {
     this->username = username;
     this->secret = secret;
     this->displayName = displayName;
@@ -301,9 +301,9 @@ MessageAuth::MessageAuth(std::string username, std::string displayName, std::str
 // Constructor for MessageAuthUDP
 MessageAuthUDP::MessageAuthUDP(
     uint16_t msgID, 
-    std::string username, 
-    std::string displayName, 
-    std::string secret
+    const std::string& username, 
+    const std::string& displayName, 
+    const std::string& secret
 ) : MessageAuth(username, displayName, secret) {
     this->msgID = msgID;
 }
@@ -336,7 +336,7 @@ std::string MessageAuthTCP::getMessage() {
 }
 
 // JOIN message
-MessageJoin::MessageJoin(std::string channelId, std::string displayName) {
+MessageJoin::MessageJoin(const std::string& channelId, const std::string& displayName) {
     this->channelId = channelId;
     this->displayName = displayName;
 }
@@ -344,8 +344,8 @@ MessageJoin::MessageJoin(std::string channelId, std::string displayName) {
 // Constructor for MessageJoinUDP
 MessageJoinUDP::MessageJoinUDP(
     uint16_t msgID, 
-    std::string channelId, 
-    std::string displayName
+    const std::string& channelId, 
+    const std::string& displayName
 ) : MessageJoin(channelId, displayName) {
     this->msgID = msgID;
 }
@@ -376,7 +376,7 @@ std::string MessageJoinTCP::getMessage() {
 }
 
 // MSG message
-MessageMsg::MessageMsg(std::string displayName, std::string content) {
+MessageMsg::MessageMsg(const std::string& displayName, const std::string& content) {
     this->displayName = displayName;
     this->content = content;
 }
@@ -384,8 +384,8 @@ MessageMsg::MessageMsg(std::string displayName, std::string content) {
 // Constructor for MessageMsgUDP
 MessageMsgUDP::MessageMsgUDP(
     uint16_t msgID, 
-    std::string displayName, 
-    std::string content
+    const std::string& displayName, 
+    const std::string& content
 ) : MessageMsg(displayName, content) {
     this->msgID = msgID;
 }
@@ -416,15 +416,12 @@ std::string MessageMsgTCP::getMessage() {
 }
 
 // BYE message
-MessageBye::MessageBye(std::string displayName) {
+MessageBye::MessageBye(const std::string& displayName) {
     this->displayName = displayName;
 }
 
 // Constructor for MessageByeUDP
-MessageByeUDP::MessageByeUDP(
-    uint16_t msgID, 
-    std::string displayName
-) : MessageBye(displayName) {
+MessageByeUDP::MessageByeUDP(uint16_t msgID, const std::string& displayName) : MessageBye(displayName) {
     this->msgID = msgID;
 }
 

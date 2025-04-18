@@ -41,7 +41,7 @@ class TCPMessages : public Message {
     public:
         TCPMessages(clientInfo* client) : Message(client) {};
         Message* readResponse() override {return nullptr;};
-        Message* readResponse(std::string resopnse);
+        Message* readResponse(const std::string& resopnse);
         Message* convertCommandToMessage() override {return nullptr;};
         Message* convertCommandToMessage(Command* command);
         MessageType getType() override {return MessageType::UNKNOWN;};
@@ -53,19 +53,19 @@ class UDPMessages : public Message {
     public:
         UDPMessages(clientInfo* client) : Message(client) {};
         Message* readResponse() override {return nullptr;};
-        Message* readResponse(std::string resopnse);
+        Message* readResponse(const std::string& resopnse);
         Message* convertCommandToMessage() override {return nullptr;};
         Message* convertCommandToMessage(uint16_t messageID, Command* command);
         MessageType getType() override {return MessageType::UNKNOWN;}
         // static method for udp ping message
-        static std::size_t getNextZeroIdx(std::string message, std::size_t startIdx);
+        static std::size_t getNextZeroIdx(const std::string& message, std::size_t startIdx);
         uint16_t getId() override {return 0;};
 }; 
 
 // message Error
 class MessageError : public Message {
     public:
-        MessageError(std::string displayName, std::string content);
+        MessageError(const std::string& displayName, const std::string& content);
         ~MessageError() {};
         MessageType getType() override {return MessageType::ERR;};
         uint16_t getId() override {return 0;};
@@ -80,7 +80,7 @@ class MessageError : public Message {
 // message Error for UDP
 class MessageErrorUDP : public MessageError {
     public:
-        MessageErrorUDP(uint16_t msgID, std::string displayName, std::string content);
+        MessageErrorUDP(uint16_t msgID, const std::string& displayName, const std::string& content);
         ~MessageErrorUDP() {};
         uint16_t getId() override {return msgID;};
         std::string getMessage() override;
@@ -91,7 +91,7 @@ class MessageErrorUDP : public MessageError {
 // message Error for TCP
 class MessageErrorTCP : public MessageError {
     public:
-        MessageErrorTCP(std::string displayName, std::string content) : MessageError(displayName, content) {};
+        MessageErrorTCP(const std::string& displayName, const std::string& content) : MessageError(displayName, content) {};
         ~MessageErrorTCP() {};
         std::string getMessage() override;
         uint16_t getId() override {return 0;};
@@ -100,7 +100,7 @@ class MessageErrorTCP : public MessageError {
 // message Reply
 class MessageReply : public Message {
     public:
-        MessageReply(bool isOk, std::string content);
+        MessageReply(bool isOk, const std::string& content);
         ~MessageReply() {};
         MessageType getType() override {return isOk ? MessageType::pREPLY : MessageType::nREPLY;};
         bool isReplyOk() const { return isOk; };
@@ -115,10 +115,11 @@ class MessageReply : public Message {
 // message Reply for UDP
 class MessageReplyUDP : public MessageReply {
     public:
-        MessageReplyUDP(uint16_t msgID, bool isOk, uint16_t refMsgID, std::string content);
+        MessageReplyUDP(uint16_t msgID, bool isOk, uint16_t refMsgID, const std::string& content);
         ~MessageReplyUDP() {};
         std::string getMessage() override;
         uint16_t getId() override {return msgID;};
+        uint16_t getRefId() const {return refMsgID;};
 
     private:
         uint16_t msgID;
@@ -128,7 +129,7 @@ class MessageReplyUDP : public MessageReply {
 // message Reply for TCP
 class MessageReplyTCP : public MessageReply {
     public:
-        MessageReplyTCP(bool isOk, std::string content) : MessageReply(isOk, content) {};
+        MessageReplyTCP(bool isOk, const std::string& content) : MessageReply(isOk, content) {};
         ~MessageReplyTCP() {};
         std::string getMessage() override;
         uint16_t getId() override {return 0;};
@@ -137,7 +138,7 @@ class MessageReplyTCP : public MessageReply {
 // message Auth
 class MessageAuth : public Message {
     public:
-        MessageAuth(std::string username, std::string displayName, std::string secret);
+        MessageAuth(const std::string& username, const std::string& displayName, const std::string& secret);
         ~MessageAuth() {};
         MessageType getType() override {return MessageType::AUTH;};
         uint16_t getId() override {return 0;};
@@ -151,7 +152,7 @@ class MessageAuth : public Message {
 // message Auth for UDP
 class MessageAuthUDP : public MessageAuth {
     public:
-        MessageAuthUDP(uint16_t msgID, std::string username, std::string displayName, std::string secret);
+        MessageAuthUDP(uint16_t msgID, const std::string& username, const std::string& displayName, const std::string& secret);
         ~MessageAuthUDP() {};
         std::string getMessage() override;
         uint16_t getId() override {return msgID;};
@@ -163,7 +164,7 @@ class MessageAuthUDP : public MessageAuth {
 // message Auth for TCP
 class MessageAuthTCP : public MessageAuth {
     public:
-        MessageAuthTCP(std::string username, std::string displayName, std::string secret) : MessageAuth(username, displayName, secret) {};
+        MessageAuthTCP(const std::string& username, const std::string& displayName, const std::string& secret) : MessageAuth(username, displayName, secret) {};
         ~MessageAuthTCP() {};
         std::string getMessage() override;
         uint16_t getId() override {return 0;};
@@ -172,7 +173,7 @@ class MessageAuthTCP : public MessageAuth {
 // message Join
 class MessageJoin : public Message {
     public:
-        MessageJoin(std::string channelId, std::string displayName);
+        MessageJoin(const std::string& channelId, const std::string& displayName);
         ~MessageJoin() {};
         MessageType getType() override {return MessageType::JOIN;};
         uint16_t getId() override {return 0;};
@@ -185,7 +186,7 @@ class MessageJoin : public Message {
 // message Join for UDP
 class MessageJoinUDP : public MessageJoin {
     public:
-        MessageJoinUDP(uint16_t msgID, std::string channelId, std::string displayName);
+        MessageJoinUDP(uint16_t msgID, const std::string& channelId, const std::string& displayName);
         ~MessageJoinUDP() {};
         std::string getMessage() override;
         uint16_t getId() override {return msgID;};
@@ -197,7 +198,7 @@ class MessageJoinUDP : public MessageJoin {
 // message Join for TCP
 class MessageJoinTCP : public MessageJoin {
     public:
-        MessageJoinTCP(std::string channelId, std::string displayName) : MessageJoin(channelId, displayName) {};
+        MessageJoinTCP(const std::string& channelId, const std::string& displayName) : MessageJoin(channelId, displayName) {};
         ~MessageJoinTCP() {};
         std::string getMessage() override;
         uint16_t getId() override {return 0;};
@@ -206,7 +207,7 @@ class MessageJoinTCP : public MessageJoin {
 // message Msg
 class MessageMsg : public Message {
     public:
-        MessageMsg(std::string displayName, std::string content);
+        MessageMsg(const std::string& displayName, const std::string& content);
         ~MessageMsg() {};
         MessageType getType() override {return MessageType::MSG;};
         std::string getDisplayName() const { return displayName; };
@@ -221,7 +222,7 @@ class MessageMsg : public Message {
 // message Msg for UDP
 class MessageMsgUDP : public MessageMsg {
     public:
-        MessageMsgUDP(uint16_t msgID, std::string displayName, std::string content);
+        MessageMsgUDP(uint16_t msgID, const std::string& displayName, const std::string& content);
         ~MessageMsgUDP() {};
         std::string getMessage() override;
         uint16_t getId() override {return msgID;};
@@ -233,7 +234,7 @@ class MessageMsgUDP : public MessageMsg {
 // message Msg for TCP
 class MessageMsgTCP : public MessageMsg {
     public:
-        MessageMsgTCP(std::string displayName, std::string content) : MessageMsg(displayName, content) {};
+        MessageMsgTCP(const std::string& displayName, const std::string& content) : MessageMsg(displayName, content) {};
         ~MessageMsgTCP() {};
         std::string getMessage() override;
         uint16_t getId() override {return 0;};
@@ -242,7 +243,7 @@ class MessageMsgTCP : public MessageMsg {
 // message bye
 class MessageBye : public Message {
     public:
-        MessageBye(std::string displayName);
+        MessageBye(const std::string& displayName);
         ~MessageBye() {};
         MessageType getType() override {return MessageType::BYE;};
         uint16_t getId() override {return 0;};
@@ -254,7 +255,7 @@ class MessageBye : public Message {
 // message bye for UDP
 class MessageByeUDP : public MessageBye {
     public:
-        MessageByeUDP(uint16_t msgID, std::string displayName);
+        MessageByeUDP(uint16_t msgID, const std::string& displayName);
         ~MessageByeUDP() {};
         std::string getMessage() override;
         uint16_t getId() override {return msgID;};
@@ -266,7 +267,7 @@ class MessageByeUDP : public MessageBye {
 // message bye for TCP
 class MessageByeTCP : public MessageBye {
     public:
-        MessageByeTCP(std::string displayName) : MessageBye(displayName) {};
+        MessageByeTCP(const std::string& displayName) : MessageBye(displayName) {};
         ~MessageByeTCP() {};
         std::string getMessage() override;
         uint16_t getId() override {return 0;};
