@@ -199,7 +199,7 @@ std::string ChatTCP::backendGetServerResponse() {
 
     int bytes_received = recv(sockfd, this->buffer, BUFFER_SIZE - 1, 0);
     if (bytes_received < 0 || bytes_received == 0) {
-        std::cout << "ERROR: receiving message or connection closed\n" << std::flush;;        
+        std::cout << "ERROR: receiving message or connection closed\n" << std::flush;        
         handleDisconnect();
     }
     return std::string(this->buffer, bytes_received);
