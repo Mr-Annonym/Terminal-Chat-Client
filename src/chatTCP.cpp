@@ -17,7 +17,7 @@ ChatTCP::ChatTCP(NetworkAdress& receiver) : Chat(receiver) {
 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
-        std::cout << "Error opening socket\n";
+        std::cout << "Error opening socket\n" << std::flush;;
         destruct();
         exit(1);
     }
@@ -25,7 +25,7 @@ ChatTCP::ChatTCP(NetworkAdress& receiver) : Chat(receiver) {
     sockaddr_in server = this->receiver;
 
     if (connect(sockfd, (struct sockaddr *)&server, sizeof(server)) < 0) {
-        std::cout << "Connection failed\n";
+        std::cout << "Connection failed\n" << std::flush;;
         perror("connect");
         destruct();
         exit(1);
@@ -68,7 +68,23 @@ void ChatTCP::readMessageFromServer() {
 }
 
 void ChatTCP::handleIncommingMessage(Message* message) {
-    if (message == nullptr) handleDisconnect();
+    if (message == nullptr) {
+        std::cout << "ERROR: invalid message/malformed message\n" << std::flush;
+        MessageErrorTCP* errMsg = new MessageErrorTCP(client.displayName, "invalid message/malformed message");
+        backendSendMessage(errMsg->getMessage());
+        handleDisconnect();
+    }
+
+    if (message->getType() == MessageType::ERR) {
+        MessageErrorTCP* errorMessage = dynamic_cast<MessageErrorTCP*>(message);
+        if (!errorMessage){
+            std::cerr << "faild to dynamic cast message to error message\n" << std::flush;
+            exit(1);
+        }
+        std::cout << "ERROR FROM " << errorMessage->getDisplayName() << ": " << errorMessage->getContent() << std::endl << std::flush;
+        handleDisconnect();
+        return;
+    }
 
     // check, if the response is allowed
     if (!msgTypeValidForStateReceived(message->getType())) {
@@ -85,7 +101,7 @@ void ChatTCP::handleIncommingMessage(Message* message) {
     } 
     
     // user Message
-    if (typeid(*message) == typeid(MessageMsgTCP) || typeid(*message) == typeid(MessageMsgUDP)) {
+    if (typeid(*message) == typeid(MessageMsgTCP)) {
         printMessage(message);
         return;
     }
@@ -96,7 +112,6 @@ void ChatTCP::handleIncommingMessage(Message* message) {
 
 // Destructor for ChatTCP (closing the sockets)
 void ChatTCP::destruct() {
-    msgBuffer->~MessageBuffer();
     deleteBuffer();
     if (sockfd >= 0) {
         shutdown(sockfd, SHUT_RDWR);
@@ -118,10 +133,10 @@ void ChatTCP::sendMessage(std::string userInput) {
     Message* message = tcpFactory->convertCommandToMessage(command);
     if (message == nullptr || !msgTypeValidForStateSent(message->getType())) {
         if (state == FSMState::START) {
-            std::cout << "ERROR: you need to authenticate first\n";
+            std::cout << "ERROR: you need to authenticate first\n" << std::flush;;
             return;
         }
-        std::cout << "ERROR: invalid input, try again or seek /help\n";
+        std::cout << "ERROR: invalid input, try again or seek /help\n" << std::flush;;
         return;
     }
 
@@ -142,7 +157,7 @@ void ChatTCP::waitForResponseWithTimeout() {
     // do buffer stuff here
     // no response -> timeout
     if (responseOut.empty()) {
-        std::cout << "ERROR: timeout on message recv\n";
+        std::cout << "ERROR: timeout on message recv\n" << std::flush;;
         sendTimeoutErrMessage();
         handleDisconnect();
         return;
@@ -184,7 +199,7 @@ std::string ChatTCP::backendGetServerResponse() {
 
     int bytes_received = recv(sockfd, this->buffer, BUFFER_SIZE - 1, 0);
     if (bytes_received < 0 || bytes_received == 0) {
-        std::cout << "ERROR: receiving message or connection closed\n";        
+        std::cout << "ERROR: receiving message or connection closed\n" << std::flush;;        
         handleDisconnect();
     }
     return std::string(this->buffer, bytes_received);
@@ -197,7 +212,7 @@ void ChatTCP::backendSendMessage(std::string message) {
     while (total_sent < message_length) {
         ssize_t bytes_sent = send(sockfd, message.c_str() + total_sent, message_length - total_sent, 0);
         if (bytes_sent < 0) {
-            std::cout << "Error sending message\n";
+            std::cout << "Error sending message\n" << std::flush;;
             exit(1);
         }
         total_sent += bytes_sent;

@@ -131,7 +131,7 @@ void Settings::representSettings() const {
               << "  Server IP Version: " << (server.ipVer == IpVersion::IPV4 ? "IPv4" : "IPv6") << "\n"
               << "  Server Port: " << server.port << "\n"
               << "  UDP Timeout Confirmation: " << udpTimeoutConfirmation << " ms\n"
-              << "  Max UDP Retransmissions: " << maxUdpRetransmissions << "\n";
+              << "  Max UDP Retransmissions: " << maxUdpRetransmissions << "\n" << std::flush;;
 }
 
 void Settings::printHelp() const {
@@ -142,5 +142,5 @@ void Settings::printHelp() const {
               << "  -p <port>          Server port (default: 4567)\n"
               << "  -d <timeout>       UDP confirmation timeout in milliseconds (default: 250)\n"
               << "  -r <retries>       Maximum number of UDP retransmissions (default: 3)\n"
-              << "  -h                 Prints this help message and exits\n";
+              << "  -h                 Prints this help message and exits\n" << std::flush;;
 }

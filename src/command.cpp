@@ -22,7 +22,7 @@ Command* Command::createCommand(std::string userInput) {
                 return nullptr;
             }
             // If none of the commands match, it's an invalid command
-            std::cerr << "Error: Invalid command. Type /help for a list of commands.\n";
+            std::cout << "ERROR: Invalid command. Type /help for a list of commands.\n" << std::flush;
             return nullptr;
         }
     }
@@ -42,7 +42,7 @@ void Command::printHelp() const {
     std::cout << "| /join    | {ChannelID}                      | Join a specific channel                  |\n";
     std::cout << "| /rename  | {DisplayName}                    | Change the display name                  |\n";
     std::cout << "| /help    |                                  | Display the list of available commands   |\n";
-    std::cout << "+----------+----------------------------------+------------------------------------------+\n";
+    std::cout << "+----------+----------------------------------+------------------------------------------+\n" << std::flush;;
 }
 
 // Constructor for CommandAuth
@@ -55,7 +55,7 @@ CommandAuth::CommandAuth(std::string userInput) {
     if (std::regex_match(userInput, matches, pattern)) {
         if (matches[4].matched) {
             // If there is extra input after the expected parameters, throw an error
-            throw std::invalid_argument("Error: Too many arguments for /auth command.");
+            std::cout <<"ERROR: Too many arguments for /auth command.\n" << std::flush;;
         }
         // Extract the Username, Secret, and DisplayName from the capturing groups
         username = matches[1].str();
@@ -65,14 +65,14 @@ CommandAuth::CommandAuth(std::string userInput) {
     }
 
     // If the input doesn't match the expected format, throw an error
-    throw std::invalid_argument("Error: Invalid format for /auth command.");
+    std::cout <<"ERROR: Invalid format for /auth command.\n" << std::flush;;
 }
 
 void CommandAuth::represent() {
     std::cout << "Command: AUTH\n";
     std::cout << "Username: " << username << "\n";
     std::cout << "Secret: " << secret << "\n";
-    std::cout << "Display Name: " << displayName << "\n";
+    std::cout << "Display Name: " << displayName << "\n" << std::flush;;
 }
 
 
@@ -86,7 +86,7 @@ CommandJoin::CommandJoin(std::string userInput) {
     if (std::regex_match(userInput, matches, pattern)) {
         if (matches[2].matched) {
             // If there is extra input after the ChannelID, throw an error
-            throw std::invalid_argument("Error: Too many arguments for /join command.");
+            std::cout <<"ERROR: Too many arguments for /join command.\n" << std::flush;;
         }
         // Extract the ChannelID from the first capturing group
         channelId = matches[1].str();
@@ -94,12 +94,12 @@ CommandJoin::CommandJoin(std::string userInput) {
     }
 
     // If the input doesn't match the expected format, throw an error
-    throw std::invalid_argument("Error: Invalid format for /join command.");
+    std::cout <<"ERROR: Invalid format for /join command.\n" << std::flush;;
 }
 
 void CommandJoin::represent() {
     std::cout << "Command: JOIN\n";
-    std::cout << "Channel ID: " << channelId << "\n";
+    std::cout << "Channel ID: " << channelId << "\n" << std::flush;;
 }
 
 // Constructor for CommandRename
@@ -112,7 +112,7 @@ CommandRename::CommandRename(std::string userInput) {
     if (std::regex_match(userInput, matches, pattern)) {
         if (matches[2].matched) {
             // If there is extra input after the new name, throw an error
-            throw std::invalid_argument("Error: Too many arguments for /rename command.");
+            std::cout <<"ERROR: Too many arguments for /rename command.\n" << std::flush;;
         }
         // Extract the new name from the first capturing group
         newName = matches[1].str();
@@ -120,17 +120,17 @@ CommandRename::CommandRename(std::string userInput) {
     } 
 
     // If the input doesn't match the expected format, throw an error
-    throw std::invalid_argument("Error: Invalid format for /rename command.");
+    std::cout <<"ERROR: Invalid format for /rename command.\n" << std::flush;;
 }
 
 void CommandRename::represent() {
     std::cout << "Command: RENAME\n";
-    std::cout << "New Name: " << newName << "\n";
+    std::cout << "New Name: " << newName << "\n" << std::flush;;
 }
 
 CommandMessage::CommandMessage(std::string userInput) {
     if (userInput.empty()) {
-        throw std::invalid_argument("Error: Empty message.");
+        std::cout <<"ERROR: Empty message.\n" << std::flush;;
     }
     // Define a regex pattern to match the message command
     message = userInput;
@@ -138,5 +138,5 @@ CommandMessage::CommandMessage(std::string userInput) {
 
 void CommandMessage::represent() {
     std::cout << "Command: MESSAGE\n";
-    std::cout << "Message: " << message << "\n";
+    std::cout << "Message: " << message << "\n" << std::flush;;
 }

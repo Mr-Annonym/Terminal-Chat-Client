@@ -58,7 +58,7 @@ class UDPMessages : public Message {
         Message* convertCommandToMessage(uint16_t messageID, Command* command);
         MessageType getType() override {return MessageType::UNKNOWN;}
         // static method for udp ping message
-        static unsigned int getNextZeroIdx(std::string message, unsigned int startIdx);
+        static std::size_t getNextZeroIdx(std::string message, std::size_t startIdx);
         uint16_t getId() override {return 0;};
 }; 
 
@@ -69,8 +69,10 @@ class MessageError : public Message {
         ~MessageError() {};
         MessageType getType() override {return MessageType::ERR;};
         uint16_t getId() override {return 0;};
+        std::string getDisplayName() const { return displayName; };
+        std::string getContent() const { return content; };
         
-        protected:
+    protected:
         std::string displayName;
         std::string content;
 };
@@ -81,7 +83,6 @@ class MessageErrorUDP : public MessageError {
         MessageErrorUDP(uint16_t msgID, std::string displayName, std::string content);
         ~MessageErrorUDP() {};
         uint16_t getId() override {return msgID;};
-
         std::string getMessage() override;
     private:
         uint16_t msgID;

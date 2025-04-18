@@ -29,7 +29,7 @@ void Chat::setupAdress(NetworkAdress& sender, sockaddr_in& addr) {
     addr.sin_family = AF_INET;
     addr.sin_port = htons(sender.port);
     if (inet_pton(AF_INET, sender.ip.c_str(), &addr.sin_addr) <= 0) {
-        std::cout << "ERROR: Invalid address/ Address not supported\n";
+        std::cout << "ERROR: Invalid address/ Address not supported\n" << std::flush;
         exit(1);
     }
 }
@@ -55,20 +55,20 @@ void Chat::printStatusMessage(Message* msg) {
         isOk = msgMsg->isReplyOk();
         content = msgMsg->getContent();
     }
-    std::string status = isOk ? "Success" : "Failed";  
-    std::cout << "Action " << status << ": " << content << std::endl;
+    std::string status = isOk ? "Success" : "Failure";  
+    std::cout << "Action " << status << ": " << content << std::endl << std::flush;
 }
 
 void Chat::printMessage(Message* msg) {
     if (msg == nullptr) return;
     if (dynamic_cast<MessageMsgTCP*>(msg)) {
         MessageMsgTCP* msgMsg = dynamic_cast<MessageMsgTCP*>(msg);
-        std::cout << msgMsg->getDisplayName() << ": " << msgMsg->getContent() << std::endl;
+        std::cout << msgMsg->getDisplayName() << ": " << msgMsg->getContent() << std::endl << std::flush;
         return;
     }
     if (dynamic_cast<MessageMsgUDP*>(msg)) {
         MessageMsgUDP* msgMsg = dynamic_cast<MessageMsgUDP*>(msg);
-        std::cout << msgMsg->getDisplayName() << ": "<< msgMsg->getContent() << std::endl;
+        std::cout << msgMsg->getDisplayName() << ": "<< msgMsg->getContent() << std::endl << std::flush;
     }
 }
 
@@ -112,9 +112,10 @@ bool Chat::msgTypeValidForStateSent(MessageType type) {
 
 bool Chat::msgTypeValidForStateReceived(MessageType type) {
     // in case i get err or bye, just exit
+
     if (
         type == MessageType::ERR || 
-        type == MessageType::BYE || 
+        type == MessageType::BYE ||
         type == MessageType::CONFIRM
     ) handleDisconnect();
 
@@ -158,12 +159,13 @@ Command* Chat::handleUserInput(std::string userInput) {
     if (userInput.empty()) return nullptr;
 
     Command* command = cmdFactory->createCommand(userInput);
+    if (command == nullptr) return nullptr;
     if (typeid(*command) != typeid(CommandRename)) return command;
 
     CommandRename* renameCmd = dynamic_cast<CommandRename*>(command);
     if (renameCmd) {
         client.displayName = renameCmd->getNewName();
-        std::cout << "Action sucsess: Display name changed to: " << client.displayName << std::endl;
+        std::cout << "Action Sucsess: Display name changed to: " << client.displayName << std::endl << std::flush;
     }
     return nullptr;
 }
@@ -196,20 +198,20 @@ std::string Chat::waitForResponse(int* timeLeft) {
     if (pfd.revents & POLLIN) return backendGetServerResponse();
 
     // Error
-    std::cout << "ERROR: internal error, poll failed\n";
+    std::cout << "ERROR: internal error, poll failed\n" << std::flush;
     handleDisconnect();
     return ""; // To make compiler happy
 }
 
 void Chat::eventLoop() {
     if (sockfd < 0) {
-        std::cout << "ERROR: socket inicialization faild\n";
+        std::cout << "ERROR: socket inicialization faild\n" << std::flush;
         exit(1);
     }
 
     // Create a socket pair for signal handling
     if (socketpair(AF_UNIX, SOCK_STREAM, 0, sigfds) == -1) {
-        std::cout << "ERROR: failed to create socket pair\n";
+        std::cout << "ERROR: failed to create socket pair\n" << std::flush;
         exit(1);
     }
 
@@ -219,7 +221,7 @@ void Chat::eventLoop() {
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = SA_RESTART;
     if (sigaction(SIGINT, &sa, nullptr) == -1) {
-        std::cout << "ERROR: faild to setup sigint\n";
+        std::cout << "ERROR: faild to setup sigint\n" << std::flush;
         exit(1);
     }
 
@@ -241,7 +243,7 @@ void Chat::eventLoop() {
 
         // poll error 
         if (ret == -1 && errno != EINTR) {
-            std::cout << "ERROR: poll failed\n";
+            std::cout << "ERROR: poll failed\n" << std::flush;
             handleDisconnect(); // Custom method to send disconnect signal
         }
 

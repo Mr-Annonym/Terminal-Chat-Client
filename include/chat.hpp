@@ -82,6 +82,7 @@ class ChatUDP : public Chat {
     private:
         void readMessageFromServer() override;
         std::string backendGetServerResponse() override;
+        bool handleConfirmation(std::string message);
         void backendSendMessage(std::string message) override;
         void sendMessage(std::string userInput) override;
         void sendByeMessage() override;
@@ -90,9 +91,11 @@ class ChatUDP : public Chat {
         void handleIncommingMessage(Message* message) override;
         Message* parseResponse(std::string response) override;
         void sendTimeoutErrMessage() override;
+        void transmitMessage(Message* msg);
         bool waitForConfirmation(Message* message);
         void waitForResponseWithTimeout(Message* msg);
         uint16_t msgCount = 0;
+        uint16_t lastShownServerMsgID = 0;
         std::vector<UDPmessaStatus> msgStatus;
         UDPMessages* udpFactory;
         int retransmissions = 0;

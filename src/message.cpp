@@ -77,12 +77,12 @@ Message* TCPMessages::readResponse(std::string resopnse) {
     return nullptr; // Unknown message type
 }
 
-unsigned int UDPMessages::getNextZeroIdx(std::string message, unsigned int startIdx) {
+std::size_t UDPMessages::getNextZeroIdx(std::string message, std::size_t startIdx) {
     std::size_t idx = message.find('\0', startIdx);
     if (idx == std::string::npos) {
         return message.size();
     }
-    return static_cast<unsigned int>(idx);
+    return idx;
 }
 
 Message* UDPMessages::readResponse(std::string resopnse) {
@@ -91,7 +91,7 @@ Message* UDPMessages::readResponse(std::string resopnse) {
     uint8_t msgType = static_cast<uint8_t>(resopnse[0]);
     uint16_t msgID1 = (static_cast<uint16_t>(resopnse[1]) << 8) | static_cast<uint16_t>(resopnse[2]);
     // print out mesage type and msgID
-    unsigned int idx1, idx2, idx3;
+    std::size_t idx1, idx2, idx3;
     try {
         switch (msgType) {
             case 0x00: // CONFIRM
@@ -99,32 +99,32 @@ Message* UDPMessages::readResponse(std::string resopnse) {
             case 0x01: // REPLY
                 return new MessageReplyUDP(msgID1, static_cast<bool>(resopnse[3]), 
                     (static_cast<uint16_t>(resopnse[4]) << 8) | static_cast<uint16_t>(resopnse[5]),
-                    resopnse.substr(6, getNextZeroIdx(resopnse, 6) - 1));
+                    resopnse.substr(6, getNextZeroIdx(resopnse, 6) - 6));
             case 0x02: // AUTH
                 idx1 = getNextZeroIdx(resopnse, 3);
                 idx2 = getNextZeroIdx(resopnse, idx1 + 1);
                 idx3 = getNextZeroIdx(resopnse, idx2 + 1);
                 return new MessageAuthUDP(
                     msgID1, 
-                    resopnse.substr(3, idx1 - 1),
-                    resopnse.substr(idx1 + 1, idx2 - 1),
-                    resopnse.substr(idx2 + 1, idx3 - 1)
+                    resopnse.substr(3, idx1 - 3),
+                    resopnse.substr(idx1 + 1, idx2 - idx1 - 1),
+                    resopnse.substr(idx2 + 1, idx3 - idx2 - 1)
                 );
             case 0x03: // JOIN
                 idx1 = getNextZeroIdx(resopnse, 3);
                 idx2 = getNextZeroIdx(resopnse, idx1 + 1);
                 return new MessageJoinUDP(
                     msgID1, 
-                    resopnse.substr(3, idx1 - 1),
-                    resopnse.substr(idx1 + 1, idx2 - 1)
+                    resopnse.substr(3, idx1 - 3),
+                    resopnse.substr(idx1 + 1, idx2 - idx1 - 1)
                 );
             case 0x04: // MSG
                 idx1 = getNextZeroIdx(resopnse, 3);
                 idx2 = getNextZeroIdx(resopnse, idx1 + 1);
                 return new MessageMsgUDP(
                     msgID1, 
-                    resopnse.substr(3, idx1 - 1),
-                    resopnse.substr(idx1 + 1, idx2 - 1)
+                    resopnse.substr(3, idx1 - 3),
+                    resopnse.substr(idx1 + 1, idx2 - idx1 - 1)
                 );
             case 0xFD: // PING
                 return new MessagePing(msgID1);
@@ -133,14 +133,14 @@ Message* UDPMessages::readResponse(std::string resopnse) {
                 idx2 = getNextZeroIdx(resopnse, idx1 + 1);
                 return new MessageErrorUDP(
                     msgID1, 
-                    resopnse.substr(3, idx1 - 1),
-                    resopnse.substr(idx1 + 1, idx2 - 1)
+                    resopnse.substr(3, idx1 - 3),
+                    resopnse.substr(idx1 + 1, idx2 - idx1 - 1)
                 );
             case 0xFF: // BYE
                 idx1 = getNextZeroIdx(resopnse, 3);
                 return new MessageByeUDP(
                     msgID1, 
-                    resopnse.substr(3, idx1 - 1)
+                    resopnse.substr(3, idx1 - 3)
                 );
             default:
                 return nullptr; // Unknown message type
