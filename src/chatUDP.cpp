@@ -105,7 +105,7 @@ void ChatUDP::transmitMessage(Message* msg) {
     // handle retransmitions
     for (int attempt = 0; attempt < retransmissions; ++attempt) {
         // send the message
-        backendSendMessage(msg->getMessage());
+        backendSendMessage(msg->getUDPMsg());
         
         // wait for a confirmation, oterwise retransmit
         if (waitForConfirmation(msg)) {
@@ -120,34 +120,64 @@ void ChatUDP::transmitMessage(Message* msg) {
     
     // no response -> timeout
     std::cout << "ERROR: connection dropped\n" << std::flush;
-    handleDisconnect();
+    handleDisconnect(nullptr);
 };
 
 // method to handle confirming messages (should be run, after i get a response form the server)
 bool ChatUDP::handleConfirmation(std::string message) {
 
+    bool ignore = false;
+
     // if the messsage is not at least 3 bytes long, just return, errors are handled outside
     if (message.length() < 3) return true;
     // firstly, need to extract the first byte, to determin, what messsage it si
     uint8_t msgType = message[0];
-    // in case we got a comfirmation message we just return
-    if (msgType == 0x00) return false;
-
     // get the msgId
     uint16_t msgID = static_cast<uint16_t>(message[1]) << 8 | static_cast<uint16_t>(message[2]);
 
+    // in case we got a comfirmation message we just return
+    if (msgType == 0x00) return false;
+
+    // update last seen mesasge ID
+    if (msgID <= lastShownServerMsgID && confirmedAtLeastOneMessage) {
+        ignore = true;
+    } else {
+        lastShownServerMsgID = msgID;
+        confirmedAtLeastOneMessage = true;
+    }
+
     // create a confirm message and send it to the server
     MessageConfirm* msg = new MessageConfirm(msgID);
-    backendSendMessage(msg->getMessage());
 
-    // bye message
-    if (msgType == 0xFF) {
-        // got a bye message, need to disconnect
-        std::cout << "ERROR: server disconnected\n" << std::flush;
+    // bye message or err msg, this mean we need to wait up to n times for a retransmit, each time send a confirm
+    if (msgType == 0xFF || msgType == 0xFE) {
+
+        if (msgType == 0xFF) {
+            // got a bye message, need to disconnect
+            std::cout << "ERROR: server disconnected\n" << std::flush;
+        } else {
+            MessageError* errMsg = dynamic_cast<MessageError*>(udpFactory->readResponse(message));
+            std::cout << "ERROR FROM " << errMsg->getDisplayName() << ": " << errMsg->getContent() << std::endl << std::flush;
+        }
+
+        int timeout;
+
+        for (int attempt = 0; attempt < retransmissions; ++attempt) {
+            timeout = this->timeout;
+            // send the confirm
+            backendSendMessage(msg->getUDPMsg());
+            // wait for a response
+            std::string serverResponse = waitForResponse(&timeout);
+            if (serverResponse.empty()) break; // no new message sent, break the loop
+        }
+      
         destruct();
         exit(0);
     }
-    return (msgType == 0xFD)? false :true;
+    backendSendMessage(msg->getUDPMsg());
+
+    // if we got a ping message, we dont need futher action
+    return msgType == 0xFD ? false : !ignore;
 }
 
 // method for waiting for a confirm message
@@ -193,8 +223,10 @@ void ChatUDP::waitForResponseWithTimeout(Message* msg) {
     int timeLeft = timeout_ms;
     uint16_t msgID = msg->getId();
 
+
     // if there is time left
     while (timeLeft > 0) {
+
         // read form server
         std::string responseOut = waitForResponse(&timeLeft);
 
@@ -204,8 +236,7 @@ void ChatUDP::waitForResponseWithTimeout(Message* msg) {
         // timeout
         if (responseOut.empty() && timeLeft <= 0) {
             std::cout << "ERROR: timeout on message recv\n" << std::flush;
-            sendTimeoutErrMessage();
-            handleDisconnect();
+            handleDisconnect(new MessageError(msgCount, client.displayName, "timeout on message recv"));
         }
 
         // parse response
@@ -214,32 +245,25 @@ void ChatUDP::waitForResponseWithTimeout(Message* msg) {
         // not a valid response
         if (message == nullptr) {
             std::cout << "ERROR: invalid message/malformed message\n" << std::flush;
-            MessageErrorUDP* errMsg = new MessageErrorUDP(msgCount, client.displayName, "Invalid message received");
-            transmitMessage(errMsg);
-            handleDisconnect();
+            handleDisconnect(new MessageError(msgCount, client.displayName, "invalid message/malformed message received"));
         }
         
         MessageType type = message->getType();
         
         // not a reply message, need to handle it
-        if (type != MessageType::pREPLY && type != MessageType::nREPLY) handleIncommingMessage(message);
-
-        MessageReplyUDP* rplyMsg = dynamic_cast<MessageReplyUDP*>(message);
-        if (rplyMsg == nullptr) {
-            std::cerr << "faild to dynamic cast\n";
-            destruct();
-            exit(1);
+        if (type != MessageType::pREPLY && type != MessageType::nREPLY) {
+            handleIncommingMessage(message);
+            continue;
         }
-
+            
+        MessageReply* rplyMsg = dynamic_cast<MessageReply*>(message);
         // bad reply 
-        if (msgID != rplyMsg->getRefId()) continue;
+        if (msgID != rplyMsg->getRefMsgID()) continue;
         
         // need to call the msgTypeValid for advancing the FSM
         if (!msgTypeValidForStateReceived(type)) {
             std::cout << "ERROR: invalid message type, expected REPLY but got MESSAGE\n" << std::flush;
-            MessageErrorUDP* errMsg = new MessageErrorUDP(msgCount, client.displayName, "Invalid message type");
-            transmitMessage(errMsg);
-            handleDisconnect();
+            handleDisconnect(new MessageError(msgCount, client.displayName, "invalid message type received for curretn state"));
         }
 
         // Repaly
@@ -248,30 +272,15 @@ void ChatUDP::waitForResponseWithTimeout(Message* msg) {
     }
 
     std::cout << "ERROR: connection to server dropped\n" << std::flush;
-    sendTimeoutErrMessage();
-    handleDisconnect();
+    handleDisconnect(nullptr);
 };
 
 // method for handling incoming messages
 void ChatUDP::handleIncommingMessage(Message* message) {
     if (message == nullptr) {
         std::cout << "ERROR: invalid message/malformed message\n" << std::flush;
-        MessageErrorUDP* errMsg = new MessageErrorUDP(msgCount, client.displayName, "invalid message/malformed message");
-        transmitMessage(errMsg);
-        handleDisconnect();
+        handleDisconnect(new MessageError(msgCount, client.displayName, "invalid message/malformed message"));
     };
-
-    // we got an error message
-    if (message->getType() == MessageType::ERR) {
-        MessageErrorUDP* errMsg = dynamic_cast<MessageErrorUDP*>(message);
-        if (!errMsg){
-            std::cerr << "faild to dynamic cast message to error message\n" << std::flush;
-            exit(1);
-        }
-        std::cout << "ERROR FROM " << errMsg->getDisplayName() << ": " << errMsg->getContent() << std::endl << std::flush;
-        handleDisconnect();
-        return;
-    }
 
     // second, check if the response is allowed
     if (!msgTypeValidForStateReceived(message->getType())) {
@@ -281,55 +290,28 @@ void ChatUDP::handleIncommingMessage(Message* message) {
         } else if (state == FSMState::OPEN) {
             errMsg = "Invalid message, expected MESSAGE but got REPLY";
         }
-        MessageErrorUDP* errorMessage = new MessageErrorUDP(msgCount, client.displayName, "FSM error");
-        backendSendMessage(errorMessage->getMessage());
-        handleDisconnect();
-        return;
+        std::cout << "ERROR: " << errMsg << std::endl << std::flush;
+        handleDisconnect(new MessageError(msgCount, client.displayName, "Message did not conform to the FSM"));
     }
 
     // user Message
     if (message->getType() == MessageType::MSG) {
-        if (message->getId() <= lastShownServerMsgID) return;
-        lastShownServerMsgID = message->getId();
         printMessage(message);
         return;
     }
 }
 
 // send the bye message and closes stuff
-void ChatUDP::handleDisconnect() {
-    // send the bye message
-    sendByeMessage();
+void ChatUDP::handleDisconnect(Message* exitMsg) {
+
+    // need to wait for a possible retransmit ...
+    if (exitMsg != nullptr) transmitMessage(exitMsg);
 
     // close the socket
     destruct();
     
     // exit the program
     exit(1);
-};
-
-// send the bye message
-void ChatUDP::sendByeMessage() {
-    MessageByeUDP* byeMessage = new MessageByeUDP(msgCount, client.displayName);
-
-    // handle retransmitions
-    for (int attempt = 0; attempt < retransmissions; ++attempt) {
-        // send the message
-        backendSendMessage(byeMessage->getMessage());
-        if (waitForConfirmation(byeMessage)) return; 
-    }
-    std::cout << "ERROR: connection to server dropped\n" << std::flush;
-};
-
-// sends the timeout error message
-void ChatUDP::sendTimeoutErrMessage() {
-    MessageErrorUDP* errMessage = new MessageErrorUDP(msgCount, client.displayName, "Timeout while waiting for server response");
-
-    for (int attempt = 0; attempt < retransmissions; ++attempt) {
-        // send the message
-        backendSendMessage(errMessage->getMessage());
-        if (waitForConfirmation(errMessage)) return; 
-    }
 };
 
 // simple send message to the server
@@ -369,8 +351,7 @@ std::string ChatUDP::backendGetServerResponse() {
     if (bytes_received < 0) {
         perror("recvfrom");
         std::cout << "ERROR: receiving UDP message\n" << std::flush;
-        handleDisconnect();
-        return "";
+        handleDisconnect(new MessageError(msgCount, client.displayName, "internal client error"));
     }
 
     // handle dynmic port switch

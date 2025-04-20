@@ -49,19 +49,13 @@ class Chat {
         virtual void sendMessage(std::string userInput) = 0;
     
         /// Handles disconnection logic (implemented in derived class).
-        virtual void handleDisconnect() = 0;
+        virtual void handleDisconnect(Message* exitMsg) = 0;
     
         /// Parses a raw response from the server into a Message (implemented in derived class).
         virtual Message* parseResponse(std::string response) = 0;
     
         /// Cleans up internal resources before program exit (implemented in derived class).
         virtual void destruct() = 0;
-    
-        /// Sends a protocol-specific "goodbye" message to terminate the session.
-        virtual void sendByeMessage() = 0;
-    
-        /// Sends a timeout error message in case of no server response.
-        virtual void sendTimeoutErrMessage() = 0;
     
         /// Receives and processes incoming messages from the server.
         virtual void readMessageFromServer() = 0;
@@ -117,6 +111,8 @@ class Chat {
         FSMState state = FSMState::START; ///< Current FSM state.
         char* buffer;                     ///< Temporary buffer for message I/O.
         int timeout_ms = 5000;            ///< Default timeout in milliseconds.
+        uint16_t msgCount = 0;            ///< Number of messages sent.
+
 };
     
 
@@ -142,9 +138,8 @@ class ChatTCP : public Chat {
         std::string backendGetServerResponse() override;
         void backendSendMessage(std::string message) override;
         void sendMessage(std::string userInput) override;
-        void handleDisconnect() override;
+        void handleDisconnect(Message* exitMsg) override;
         void destruct() override;
-        void sendByeMessage() override;
         void handleIncommingMessage(Message* message) override;
         Message* parseResponse(std::string response) override;
     
@@ -153,11 +148,6 @@ class ChatTCP : public Chat {
          */
         void waitForResponseWithTimeout();
 
-        /**
-         * @brief sends a timeout error message to the server.
-         */
-        void sendTimeoutErrMessage() override;
-    
         TCPMessages* tcpFactory;                        ///< Factory for TCP protocol message creation.
         MessageBuffer* msgBuffer = new MessageBuffer(); ///< Buffer to accumulate incomplete TCP messages.
         std::string currentMessage;                     ///< Currently read message from socket.
@@ -189,12 +179,10 @@ class ChatUDP : public Chat {
     
         void backendSendMessage(std::string message) override;
         void sendMessage(std::string userInput) override;
-        void sendByeMessage() override;
-        void handleDisconnect() override;
+        void handleDisconnect(Message* exitMsg) override;
         void destruct() override; 
         void handleIncommingMessage(Message* message) override;
         Message* parseResponse(std::string response) override;
-        void sendTimeoutErrMessage() override;
 
         /**
          * @brief Method that handles confirmation of messages.
@@ -222,13 +210,12 @@ class ChatUDP : public Chat {
          * @param msg The original message expecting confirmation.
          */
         void waitForResponseWithTimeout(Message* msg);
-    
-        uint16_t msgCount = 0;                  ///< Number of messages sent.
-        uint16_t lastShownServerMsgID = 0;      ///< Last received and shown message ID from server.
-        std::vector<UDPmessaStatus> msgStatus;  ///< Status of messages (for confirmation and retry).
-        UDPMessages* udpFactory;                ///< UDP message factory for message creation.
-        int retransmissions = 0;                ///< Max number of retransmissions per message.
-        int timeout = 0;                        ///< Timeout for waiting for confirmation.
+        
+        uint16_t lastShownServerMsgID = 0;       ///< Last received and shown message ID from server.
+        bool confirmedAtLeastOneMessage = false; ///< Flag to check if at least one message was confirmed.
+        UDPMessages* udpFactory;                 ///< UDP message factory for message creation.
+        int retransmissions = 0;                 ///< Max number of retransmissions per message.
+        int timeout = 0;                         ///< Timeout for waiting for confirmation.
 };
     
 

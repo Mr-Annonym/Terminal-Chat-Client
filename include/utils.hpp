@@ -15,12 +15,6 @@
 extern int sigfds[2]; 
 void signalHandler(int sig);
 
-// Enumeration for the status of UDP messages
-enum class UDPmessaStatus {
-    SENT,       // Message has been sent
-    CONFIRMED,  // Message has been confirmed
-};
-
 // Enumeration for the finite state machine (FSM) states
 enum class FSMState {
     START,  // Initial state
@@ -42,13 +36,6 @@ enum class MessageType {
     pREPLY,    // Positive reply
     nREPLY,    // Negative reply
     UNKNOWN    // Unknown message type
-};
-
-// Enumeration for the status of a client
-enum class ClientStatus {
-    AUTHENTICATED, // Client is authenticated
-    JOINED,        // Client has joined a session
-    NONE           // Client has no status
 };
 
 // Enumeration for the communication mode

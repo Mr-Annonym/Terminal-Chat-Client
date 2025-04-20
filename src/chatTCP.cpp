@@ -25,7 +25,7 @@ ChatTCP::ChatTCP(NetworkAdress& receiver) : Chat(receiver) {
     // create the socket
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
-        std::cout << "Error opening socket\n" << std::flush;;
+        std::cout << "Error opening socket\n" << std::flush;
         destruct();
         exit(1);
     }
@@ -34,7 +34,7 @@ ChatTCP::ChatTCP(NetworkAdress& receiver) : Chat(receiver) {
 
     // connect to the server
     if (connect(sockfd, (struct sockaddr *)&server, sizeof(server)) < 0) {
-        std::cout << "Connection failed\n" << std::flush;;
+        std::cout << "Connection failed\n" << std::flush;
         perror("connect");
         destruct();
         exit(1);
@@ -92,20 +92,14 @@ void ChatTCP::handleIncommingMessage(Message* message) {
     // if the message is nullptr, it means that we dont understand the message or it is malformed
     if (message == nullptr) {
         std::cout << "ERROR: invalid message/malformed message\n" << std::flush;
-        MessageErrorTCP* errMsg = new MessageErrorTCP(client.displayName, "invalid message/malformed message");
-        backendSendMessage(errMsg->getMessage());
-        handleDisconnect();
+        handleDisconnect(new MessageError(0, client.displayName, "invalid message/malformed message"));
     }
 
     // if the message is an error message, print it and disconnect
     if (message->getType() == MessageType::ERR) {
-        MessageErrorTCP* errorMessage = dynamic_cast<MessageErrorTCP*>(message);
-        if (!errorMessage){
-            std::cerr << "faild to dynamic cast message to error message\n" << std::flush;
-            exit(1);
-        }
+        MessageError* errorMessage = dynamic_cast<MessageError*>(message);
         std::cout << "ERROR FROM " << errorMessage->getDisplayName() << ": " << errorMessage->getContent() << std::endl << std::flush;
-        handleDisconnect();
+        handleDisconnect(nullptr);
         return;
     }
 
@@ -117,14 +111,12 @@ void ChatTCP::handleIncommingMessage(Message* message) {
         } else if (state == FSMState::OPEN) {
             errMsg = "Invalid message, expected MESSAGE but got REPLY";
         }
-        MessageErrorTCP* errorMessage = new MessageErrorTCP(client.displayName, errMsg);
-        backendSendMessage(errorMessage->getMessage());
-        handleDisconnect();
+        handleDisconnect(new MessageError(0, client.displayName, "Invalid message type for current state"));
         return;
     } 
     
     // user Message
-    if (typeid(*message) == typeid(MessageMsgTCP)) {
+    if (message->getType() == MessageType::MSG) {
         printMessage(message);
         return;
     }
@@ -163,15 +155,15 @@ void ChatTCP::sendMessage(std::string userInput) {
     if (message == nullptr || !msgTypeValidForStateSent(message->getType())) {
         // dont exit program here, this is user error
         if (state == FSMState::START) {
-            std::cout << "ERROR: you need to authenticate first\n" << std::flush;;
+            std::cout << "ERROR: you need to authenticate first\n" << std::flush;
             return;
         }
-        std::cout << "ERROR: invalid input, try again or seek /help\n" << std::flush;;
+        std::cout << "ERROR: invalid input, try again or seek /help\n" << std::flush;
         return;
     }
 
     // send the message to the server
-    backendSendMessage(message->getMessage());
+    backendSendMessage(message->getTCPMsg());
 
     // if we sent an auth message or join message, we need to wait for a reply
     MessageType msgType = message->getType();
@@ -188,9 +180,8 @@ void ChatTCP::waitForResponseWithTimeout() {
 
     // no response -> timeout
     if (responseOut.empty()) {
-        std::cout << "ERROR: timeout on message recv\n" << std::flush;;
-        sendTimeoutErrMessage();
-        handleDisconnect();
+        std::cout << "ERROR: timeout on message recv\n" << std::flush;
+        handleDisconnect(new MessageError(0, client.displayName, "timeout on message recv"));
         return;
     }
 
@@ -206,23 +197,15 @@ Message* ChatTCP::parseResponse(std::string response) {
 }
 
 // method for handling disconnection
-void ChatTCP::handleDisconnect() {
-    sendByeMessage();
-    destruct();
-    exit(0);
-}
+void ChatTCP::handleDisconnect(Message* exitMsg) {
 
-// method for sending a BYE message
-void ChatTCP::sendByeMessage() {
-    MessageByeTCP* byMessage = new MessageByeTCP(client.displayName);
-    backendSendMessage(byMessage->getMessage());
-    destruct();
-}
+    if (exitMsg != nullptr) {
+        // send the message to the server
+        backendSendMessage(exitMsg->getTCPMsg());
+    }
 
-// method for sending a timeout error message
-void ChatTCP::sendTimeoutErrMessage() {
-    MessageErrorTCP* errMessage = new MessageErrorTCP(client.displayName, "Timeout while waiting for server response");
-    backendSendMessage(errMessage->getMessage());
+    destruct(); // close connection and free resources
+    exit(0); 
 }
 
 // method for receiving server response
@@ -234,7 +217,7 @@ std::string ChatTCP::backendGetServerResponse() {
     int bytes_received = recv(sockfd, this->buffer, BUFFER_SIZE - 1, 0);
     if (bytes_received < 0 || bytes_received == 0) {
         std::cout << "ERROR: receiving message or connection closed\n" << std::flush;        
-        handleDisconnect();
+        handleDisconnect(nullptr);
     }
     return std::string(this->buffer, bytes_received);
 }
@@ -248,8 +231,8 @@ void ChatTCP::backendSendMessage(std::string message) {
     while (total_sent < message_length) {
         ssize_t bytes_sent = send(sockfd, message.c_str() + total_sent, message_length - total_sent, 0);
         if (bytes_sent < 0) {
-            std::cout << "Error sending message\n" << std::flush;;
-            exit(1);
+            std::cout << "Error sending message\n" << std::flush;
+            handleDisconnect(nullptr);
         }
         total_sent += bytes_sent;
     }

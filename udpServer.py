@@ -21,12 +21,15 @@ HOST = "127.0.0.1"
 INITIAL_PORT = 4567
 
 # Configurable delay to simulate packet loss (in seconds)
-PACKET_DELAY_MIN = 0
+PACKET_DELAY_MIN = 0.1
 PACKET_DELAY_MAX = 0.2
 
 # Global state
 server_msg_id = 0
 client = None  # Store information about the single connected client
+
+global client_authenticated
+client_authenticated = False
 
 def build_confirm(ref_id):
     msg = struct.pack("!BH", CONFIRM, ref_id)
@@ -35,31 +38,26 @@ def build_confirm(ref_id):
 def build_reply(code, ref_id, message):
     global server_msg_id
     msg = struct.pack("!BHBH", REPLY, server_msg_id, code, ref_id) + message.encode("utf-8") + b"\x00"
-    server_msg_id += 1
     return msg
 
 def build_msg(display_name, message):
     global server_msg_id
     msg = struct.pack("!BH", MSG, server_msg_id)
-    server_msg_id += 1
     return msg + display_name.encode("utf-8") + b"\x00" + message.encode("utf-8") + b"\x00"
 
 def build_err(display_name, message):
     global server_msg_id
     msg = struct.pack("!BH", ERR, server_msg_id)
-    server_msg_id += 1
     return msg + display_name.encode("utf-8") + b"\x00" + message.encode("utf-8") + b"\x00"
 
 def build_bye(display_name):
     global server_msg_id
     msg = struct.pack("!BH", BYE, server_msg_id)
-    server_msg_id += 1
     return msg + display_name.encode("utf-8") + b"\x00"
 
 def build_ping():
     global server_msg_id
     msg = struct.pack("!BH", PING, server_msg_id)
-    server_msg_id += 1
     return msg
 
 def parse_string_fields(data, start_pos=0):
@@ -102,6 +100,8 @@ def initial_listener():
         if msg_type != CONFIRM:
             confirm_msg = build_confirm(msg_id)
             simulate_packet_delay()  # Simulate packet delay
+            global server_msg_id
+            server_msg_id += 1
             sock.sendto(confirm_msg, addr)
             print(f"[SENT] Confirm for ID {msg_id}")
         
@@ -140,6 +140,7 @@ def initial_listener():
                     reply_msg = build_reply(1, msg_id, "Authentication successful")
                     client_sock.sendto(reply_msg, addr)
                     print(f"[SENT] Auth success reply from dynamic port {dyn_port}")
+                    client_authenticated = True
                 else:
                     print("[AUTH] Invalid format - missing fields")
             except Exception as e:
@@ -172,6 +173,8 @@ def client_listener(sock, client_addr):
             if msg_type != CONFIRM:
                 confirm_msg = build_confirm(msg_id)
                 simulate_packet_delay()  # Simulate packet delay
+                global server_msg_id
+                server_msg_id += 1
                 sock.sendto(confirm_msg, addr)
                 print(f"[SENT] Confirm for ID {msg_id}")
             

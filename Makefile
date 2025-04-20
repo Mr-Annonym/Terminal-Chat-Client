@@ -36,19 +36,20 @@ clean:
 	rm -rf obj/*
 
 ifeq ($(shell uname), Darwin)
-testTcp:
+testServerTcp:
 	nc -l 4567 -k -c
 else
-testTcp:
+testServerTcp:
 	nc -l -k -p 4567 -C
 endif
 
-testUDP:
+testServerUDP:
 	python3 udpServer.py
 
 umlDiagram:
 	hpp2plantuml -i "./include/*.hpp" -o output.puml
 	plantuml -tsvg output.puml
+	rm output.puml
 
 .PHONY: all clean argTest zip valgrind rebuild testTcp testUDP umlDiagram
 

@@ -58,17 +58,16 @@ void Chat::printStatusMessage(Message* msg) {
     bool isOk;
     std::string content;
 
+    if (msg->getType() != MessageType::pREPLY && msg->getType() != MessageType::nREPLY) {
+        std::cout << "ERROR: invalid message type, expected REPLY but got MESSAGE\n" << std::flush;
+        handleDisconnect(new MessageError(msgCount, client.displayName, "invalid message type"));
+    }
+    
     // dynamic cast only used for casting inharited classes
-    if (dynamic_cast<MessageReplyTCP*>(msg)) {
-        MessageReplyTCP* msgMsg = dynamic_cast<MessageReplyTCP*>(msg);
-        isOk = msgMsg->isReplyOk();
-        content = msgMsg->getContent();
-    }
-    if (dynamic_cast<MessageReplyUDP*>(msg)) {
-        MessageReplyUDP* msgMsg = dynamic_cast<MessageReplyUDP*>(msg);
-        isOk = msgMsg->isReplyOk();
-        content = msgMsg->getContent();
-    }
+    MessageReply* msgReply = dynamic_cast<MessageReply*>(msg);
+
+    isOk = msgReply->isReplyOk();
+    content = msgReply->getContent();
 
     // print the status message
     std::string status = isOk ? "Success" : "Failure";  
@@ -79,23 +78,17 @@ void Chat::printStatusMessage(Message* msg) {
 void Chat::printMessage(Message* msg) {
     if (msg == nullptr) return; // something went wrong
 
-    // dynamic cast only used for casting inharited classes
-    if (dynamic_cast<MessageMsgTCP*>(msg)) {
-        MessageMsgTCP* msgMsg = dynamic_cast<MessageMsgTCP*>(msg);
-        std::cout << msgMsg->getDisplayName() << ": " << msgMsg->getContent() << std::endl << std::flush;
-        return;
+    if (msg->getType() != MessageType::MSG) {
+        std::cout << "ERROR: invalid message type, expected MESSAGE but got REPLY\n" << std::flush;
+        handleDisconnect(new MessageError(msgCount, client.displayName, "invalid message type"));
     }
-    if (dynamic_cast<MessageMsgUDP*>(msg)) {
-        MessageMsgUDP* msgMsg = dynamic_cast<MessageMsgUDP*>(msg);
-        std::cout << msgMsg->getDisplayName() << ": "<< msgMsg->getContent() << std::endl << std::flush;
-    }
+
+    MessageMsg* msgMsg = dynamic_cast<MessageMsg*>(msg);
+    std::cout << msgMsg->getDisplayName() << ": " << msgMsg->getContent() << std::endl << std::flush;
 }
 
 // Method to check, if a given sent message is valid for the current state
 bool Chat::msgTypeValidForStateSent(MessageType type) {
-
-    // bye can be sent form anywhere, exit program
-    if (type == MessageType::BYE) handleDisconnect();
 
     switch (state) {
         case FSMState::START:
@@ -133,11 +126,7 @@ bool Chat::msgTypeValidForStateSent(MessageType type) {
 // method to validate if a given incoming message is valid for the current state
 bool Chat::msgTypeValidForStateReceived(MessageType type) {
     // in case i get err or bye, just exit
-    if (
-        type == MessageType::ERR || 
-        type == MessageType::BYE ||
-        type == MessageType::CONFIRM
-    ) handleDisconnect();
+    if (type == MessageType::BYE) handleDisconnect(nullptr);
 
     switch (state) {
         case FSMState::START:
@@ -148,6 +137,7 @@ bool Chat::msgTypeValidForStateReceived(MessageType type) {
                 return true;
             }
             if (type == MessageType::nREPLY) {  // auth failed
+                state = FSMState::START;
                 return true;
             }
             return false;
@@ -223,7 +213,6 @@ std::string Chat::waitForResponse(int* timeLeft) {
 
     // Error
     std::cout << "ERROR: internal error, poll failed\n" << std::flush;
-    handleDisconnect();
     return ""; // To make compiler happy
 }
 
@@ -234,7 +223,8 @@ void Chat::eventLoop() {
         exit(1);
     }
 
-    // Create a socket pair for signal handling
+    // Create a socket pair for signal handling 
+    // credit -> chat GPT
     if (socketpair(AF_UNIX, SOCK_STREAM, 0, sigfds) == -1) {
         std::cout << "ERROR: failed to create socket pair\n" << std::flush;
         exit(1);
@@ -272,14 +262,14 @@ void Chat::eventLoop() {
         // poll error 
         if (ret == -1 && errno != EINTR) {
             std::cout << "ERROR: poll failed\n" << std::flush;
-            handleDisconnect(); // Custom method to send disconnect signal
+            handleDisconnect(new MessageError(msgCount, client.displayName, "internal client error")); 
         }
 
         // Check for user input
         if (fds[0].revents & POLLIN) {
             std::string userMessage;
             if (!std::getline(std::cin, userMessage)) { // Handle EOF
-                handleDisconnect(); // Custom method to send disconnect signal
+                handleDisconnect(new MessageBye(msgCount, client.displayName)); 
             }
             // handle the user input
             if (!userMessage.empty()) sendMessage(userMessage);
@@ -292,7 +282,7 @@ void Chat::eventLoop() {
         if (fds[2].revents & POLLIN) {
             int sig;
             read(sigfds[0], &sig, sizeof(sig));
-            handleDisconnect(); // Custom method to send disconnect signal
+            handleDisconnect(new MessageBye(msgCount, client.displayName)); 
         }
     }
 

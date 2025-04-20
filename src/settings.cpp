@@ -29,6 +29,7 @@ TargetType determinTargetType(const std::string &target) {
 } 
 
 // method to get the ip form a domain
+// helped by -> chat GPT
 std::string Settings::getIpFromDomain(const std::string& domain) {
     struct addrinfo hints{}, *res, *p;
     char ipStr[INET_ADDRSTRLEN]; // Buffer for IPv4 address
