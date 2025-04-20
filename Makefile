@@ -53,7 +53,7 @@ umlDiagram:
 	rm output.puml
 
 zip:
-	zip -r x247581.zip docs src include Makefile LICENSE README.md CHANGELOG.md udpServer.py
+	zip -r x247581.zip docs src include Makefile LICENSE README.md CHANGELOG.md
     
 .PHONY: all clean argTest zip valgrind rebuild testTcp testUDP umlDiagram
 

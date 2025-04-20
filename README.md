@@ -2,19 +2,53 @@
 
 ## Table of Contents
 - [Executive Summary](#executive-summary)
+    - [Understanding TCP and UDP Protocols](#understanding-tcp-and-udp-protocols)
+        - [TCP (Transmission Control Protocol)](#tcp-transmission-control-protocol)
+        - [UDP (User Datagram Protocol)](#udp-user-datagram-protocol)
+    - [Object-Oriented Programming (OOP) in the Project](#object-oriented-programming-oop-in-the-project)
 - [Application Overview](#application-overview)
+    - [Overview](#overview)
+    - [Running the Chat Client](#running-the-chat-client)
 - [UML Diagrams or Code Narratives](#uml-diagrams-or-code-narratives)
+    - [UML Diagram](#uml-diagram)
+    - [Design Philosophy](#design-philosophy)
+    - [Directory Tree](#directory-tree)
 - [Features](#features)
 - [Testing](#testing)
-    - [What Was Tested](#what-was-tested)
-    - [Why It Was Tested](#why-it-was-tested)
-    - [How It Was Tested](#how-it-was-tested)
+    - [Arguments Testing](#arguments-testing)
+    - [TCP Testing](#tcp-testing)
+        - [Localhost Testing](#localhost-testing)
+        - [Test Case 1: Help Command](#test-case-1-help-command)
+        - [Test Case 2: Login Command](#test-case-2-login-command)
+        - [Test Case 3: Sending Messages](#test-case-3-sending-messages)
+        - [Test Case 4: Rename Command](#test-case-4-rename-command)
+        - [Test Case 5: Sending Messages After Rename](#test-case-5-sending-messages-after-rename)
+        - [Test Case 6: Joining a New Channel](#test-case-6-joining-a-new-channel)
+        - [Test Case 7: Bad Reply for Authentication](#test-case-7-bad-reply-for-authentication)
+        - [Test Case 8: Sending Messages Without Authentication](#test-case-8-sending-messages-without-authentication)
+        - [Test Case 9: Timeout on Authentication Request](#test-case-9-timeout-on-authentication-request)
+        - [Test Case 10: Running Client with an Invalid Server](#test-case-10-running-client-with-an-invalid-server)
+        - [Test Case 11: Termination via Ctrl+C/Ctrl+D](#test-case-11-termination-via-ctrlcctrld)
+        - [Discord Server Testing TCP](#discord-server-testing-tcp)
+    - [UDP Testing](#udp-testing)
+        - [UDP Testing v1: Basic Implementation with Python Server](#udp-testing-v1-basic-implementation-with-python-server)
+        - [Test Case 1: Displaying Help](#test-case-1-displaying-help)
+        - [Test Case 2: Authentication](#test-case-2-authentication)
+        - [Test Case 3: Sending a Message](#test-case-3-sending-a-message)
+        - [Test Case 4: Receiving a Message from the Server](#test-case-4-receiving-a-message-from-the-server)
+        - [Test Case 5: Joining a New Channel](#test-case-5-joining-a-new-channel)
+        - [Test Case 6: Sending a Message After Joining a New Channel](#test-case-6-sending-a-message-after-joining-a-new-channel)
+        - [Test Case 7: Renaming the Client](#test-case-7-renaming-the-client)
+        - [Test Case 8: Sending a Message After Renaming](#test-case-8-sending-a-message-after-renaming)
+        - [Test Case 9: Graceful Termination (Ctrl+C / Ctrl+D)](#test-case-9-graceful-termination-ctrlc--ctrld)
+        - [Test Case 10: Server Ping Message](#test-case-10-server-ping-message)
+        - [Test Case 13: Packet Loss Simulation](#test-case-13-packet-loss-simulation)
+        - [Test Case 15: Maximum Retransmission Testing](#test-case-15-maximum-retransmission-testing)
+        - [Discord Server Testing UDP](#discord-server-testing-udp)
     - [Testing Environment](#testing-environment)
-    - [Inputs, Expected Outputs, and Actual Outputs](#inputs-expected-outputs-and-actual-outputs)
-    - [Comparison with Similar Tools](#comparison-with-similar-tools)
-- [Extra Functionality](#extra-functionality)
 - [Bibliography](#bibliography)
-- [Source Code Comments](#source-code-comments)
+
+
 
 ---
 
@@ -152,13 +186,6 @@ IPKproj2/
 ```
 
 The separation of `.cpp` and `.hpp` files serves a practical purpose: it simplifies navigation and organization within the project. By keeping implementation details in `.cpp` files and declarations in `.hpp` files, it becomes easier to locate specific components.
-
----
-
-## Features
-- [Item1: Description of feature 1](#item1-description-of-feature-1)
-- [Item2: Description of feature 2](#item2-description-of-feature-2)
-- [Item3: Description of feature 3](#item3-description-of-feature-3)
 
 ---
 
