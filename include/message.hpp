@@ -4,6 +4,7 @@
 #include <string>
 #include "command.hpp"
 #include "utils.hpp"
+#include <cstdint>
 
 struct clientInfo {
     std::string displayName;

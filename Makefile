@@ -34,6 +34,7 @@ obj/%.o: src/%.cpp $(HDRS)
 clean:
 	rm -f $(OBJS) $(ARGOBJS) $(TARGET)
 	rm -rf obj/*
+	rm -f ./x247581.zip
 
 ifeq ($(shell uname), Darwin)
 testServerTcp:
@@ -51,5 +52,8 @@ umlDiagram:
 	plantuml -tsvg output.puml
 	rm output.puml
 
+zip:
+	zip -r x247581.zip docs src include Makefile LICENSE README.md CHANGELOG.md udpServer.py
+    
 .PHONY: all clean argTest zip valgrind rebuild testTcp testUDP umlDiagram
 
