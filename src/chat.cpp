@@ -23,7 +23,10 @@ int sigfds[2];
 // function to handle the ctrl+c signal
 void signalHandler(int sig) {
     // Notify poll() about the signalds
-    write(sigfds[1], &sig, sizeof(sig)); 
+    if (write(sigfds[1], &sig, sizeof(sig)) == -1) {
+        std::cerr << "ERROR: failed to write to signal socket\n" << std::flush;
+        exit(1);
+    }; 
 }
 
 // Constructor for Chat class
@@ -247,7 +250,7 @@ void Chat::eventLoop() {
 
     // server response
     fds[1].fd = sockfd;
-    fds[1].events = POLLIN;
+    fds[1].events = POLLIN | POLLHUP; // POLLHUP needs to bere here, in case the stdin would be closed
 
     // ctrl+c signal
     fds[2].fd = sigfds[0]; // Signal notification via socketpair
@@ -266,7 +269,7 @@ void Chat::eventLoop() {
         }
 
         // Check for user input
-        if (fds[0].revents & POLLIN) {
+        if (fds[0].revents & POLLIN || fds[0].revents & POLLHUP) {
             std::string userMessage;
             if (!std::getline(std::cin, userMessage)) { // Handle EOF
                 handleDisconnect(new MessageBye(msgCount, client.displayName)); 
@@ -281,7 +284,10 @@ void Chat::eventLoop() {
         // Check for SIGINT (Ctrl+C)
         if (fds[2].revents & POLLIN) {
             int sig;
-            read(sigfds[0], &sig, sizeof(sig));
+            if (read(sigfds[0], &sig, sizeof(sig)) == -1) {
+                std::cerr << "ERROR: failed to read from signal socket\n" << std::flush;
+                exit(1);
+            };
             handleDisconnect(new MessageBye(msgCount, client.displayName)); 
         }
     }

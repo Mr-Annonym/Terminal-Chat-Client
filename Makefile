@@ -17,7 +17,7 @@ HDRS = $(wildcard include/*.hpp)
 OBJS = $(patsubst src/%.cpp,obj/%.o,$(SRCS))
 
 # Executable names
-TARGET = ipk25-chat
+TARGET = ipk25chat-client
 
 # Default target
 all: $(TARGET)
