@@ -1,4 +1,5 @@
-# IPKproj2
+# Terminal Chat Client
+note that this is a copy of my school project in subject IPK at VUT FIT
 
 ## Table of Contents
 - [Executive Summary](#executive-summary)
